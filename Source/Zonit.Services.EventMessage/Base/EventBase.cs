@@ -23,7 +23,7 @@ public abstract class EventBase : IEventHandler
     /// <param name="payload"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    protected abstract Task HandleAsync(PayloadModel payload, CancellationToken cancellationToken);
+    protected abstract Task HandleAsync(object data, CancellationToken cancellationToken);
 
     public void Subscribe()
     {
@@ -32,7 +32,7 @@ public abstract class EventBase : IEventHandler
             try
             {
                 Logger.LogInformation("Subscribed: {EventName}", EventName);
-                await HandleAsync(payload, CancellationToken.None);
+                await HandleAsync(payload.Data, payload.CancellationToken);
             }
             catch (Exception ex)
             {

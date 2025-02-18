@@ -7,9 +7,9 @@ internal class MailEvent(ILogger<MailEvent> _logger) : EventBase
 {
     protected override string EventName => "Article.Created";
 
-    protected override async Task HandleAsync(PayloadModel payload, CancellationToken cancellationToken)
+    protected override async Task HandleAsync(object payload, CancellationToken cancellationToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
-        _logger.LogInformation("[Mail.Send] Otrzymano: {PayloadX}", payload.Data);
+        _logger.LogInformation("[Mail.Send] Otrzymano: {PayloadX}", payload);
     }
 }

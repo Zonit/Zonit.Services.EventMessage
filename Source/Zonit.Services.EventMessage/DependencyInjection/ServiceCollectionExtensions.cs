@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Reflection;
 using Zonit.Services.EventMessage;
 using Zonit.Services.EventMessage.Services;

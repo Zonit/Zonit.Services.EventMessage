@@ -7,9 +7,9 @@ internal class NotificationEvent(ILogger<NotificationEvent> _logger) : EventBase
     protected override string EventName => "Article.Created";
     protected override int EventWorker => 100;
 
-    protected override async Task HandleAsync(PayloadModel payload, CancellationToken cancellationToken)
+    protected override async Task HandleAsync(object payload, CancellationToken cancellationToken)
     {
-        dynamic data = payload.Data;
+        dynamic data = payload;
 
         _logger.LogInformation($"[NotificationEvent] {data.Name} {data.Context}");
         await Task.Delay(1000, cancellationToken);
