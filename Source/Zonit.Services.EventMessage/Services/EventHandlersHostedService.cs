@@ -7,21 +7,24 @@ namespace Zonit.Services.EventMessage.Services;
 
 internal class EventHandlersHostedService(IServiceProvider _serviceProvider) : IHostedService
 {
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var eventBus = _serviceProvider.GetRequiredService<IEventProvider>();
-        var logger = _serviceProvider.GetRequiredService<ILogger<EventBase>>();
-        var handlers = _serviceProvider.GetServices<IEventHandler>();
-
-        foreach (var handler in handlers)
+        using (var scope = _serviceProvider.CreateScope())
         {
-            handler.GetType().GetProperty("EventBus", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.SetValue(handler, eventBus);
-            handler.GetType().GetProperty("Logger", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.SetValue(handler, logger);
+            var eventBus = scope.ServiceProvider.GetRequiredService<IEventProvider>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<EventBase>>();
+            var handlers = scope.ServiceProvider.GetServices<IEventHandler>();
 
-            handler.Subscribe();
+            foreach (var handler in handlers)
+            {
+                handler.GetType().GetProperty("EventBus", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.SetValue(handler, eventBus);
+                handler.GetType().GetProperty("Logger", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.SetValue(handler, logger);
+
+                handler.Subscribe();
+            }
         }
 
-        return Task.CompletedTask;
+        await Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
