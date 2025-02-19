@@ -18,9 +18,29 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddEventMessageHandlers(this IServiceCollection services)
     {
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        var loadedAssemblies = new HashSet<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
 
-        var handlerTypes = assemblies
+        // Załaduj brakujące zestawy, jeśli nie zostały automatycznie wykryte
+        foreach (var assembly in loadedAssemblies.ToList())
+        {
+            try
+            {
+                foreach (var referencedAssembly in assembly.GetReferencedAssemblies())
+                {
+                    if (!loadedAssemblies.Any(a => a.FullName == referencedAssembly.FullName))
+                    {
+                        var loaded = Assembly.Load(referencedAssembly);
+                        loadedAssemblies.Add(loaded);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Błąd ładowania zależności: {ex.Message}");
+            }
+        }
+
+        var handlerTypes = loadedAssemblies
             .SelectMany(a =>
             {
                 try
@@ -32,13 +52,20 @@ public static class ServiceCollectionExtensions
                     return ex.Types.Where(t => t != null)!;
                 }
             })
-            .Where(t => typeof(IEventHandler).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+            .Where(t => t is not null && typeof(IEventHandler).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+            .Distinct();
 
         foreach (var type in handlerTypes)
-            if (!services.Any(s => s.ServiceType == typeof(IEventHandler) && s.ImplementationType == type) && type is not null)
-                services.AddTransient(typeof(IEventHandler), type);
-            
+        {
+            if (type != null && !services.Any(s => s.ServiceType == typeof(IEventHandler) && s.ImplementationType == type))
+            {
+                services.AddScoped(typeof(IEventHandler), type);
+                services.AddScoped(type);
+            }
+        }
+
         return services;
     }
+
 
 }

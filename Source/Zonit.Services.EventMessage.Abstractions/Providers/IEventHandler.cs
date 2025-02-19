@@ -2,5 +2,5 @@
 
 public interface IEventHandler
 {
-    void Subscribe();
+    void Subscribe(IServiceProvider serviceProvider);
 }

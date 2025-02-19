@@ -1,12 +1,12 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Diagnostics;
 
 namespace Zonit.Services.EventMessage;
 
 public abstract class EventBase : IEventHandler
 {
-    protected IEventProvider EventBus { get; set; } = null!;
-    protected ILogger<EventBase> Logger { get; set; } = null!;
-
     /// <summary>
     /// Name of the event to subscribe to.
     /// </summary>
@@ -25,18 +25,30 @@ public abstract class EventBase : IEventHandler
     /// <returns></returns>
     protected abstract Task HandleAsync(object data, CancellationToken cancellationToken);
 
-    public void Subscribe()
+    public void Subscribe(IServiceProvider serviceProvider)
     {
-        EventBus.Subscribe(EventName, EventWorker, async payload =>
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+
+        var eventBus = serviceProvider.GetRequiredService<IEventProvider>();
+        var logger = serviceProvider.GetRequiredService<ILogger<EventBase>>();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        eventBus.Subscribe(EventName, EventWorker, async payload =>
         {
+            logger.LogInformation("Subscribed {EventName}", EventName);
+
+            using var scope = scopeFactory.CreateScope();
+
             try
             {
-                Logger.LogInformation("Subscribed: {EventName}", EventName);
-                await HandleAsync(payload.Data, payload.CancellationToken);
+                if (scope.ServiceProvider.GetRequiredService(GetType()) is not EventBase handler)
+                    return;
+
+                await handler.HandleAsync(payload.Data, payload.CancellationToken);
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Event '{EventName}' failed", EventName);
+                logger.LogError(ex, "Event '{EventName}' failed", EventName);
             }
         });
     }
