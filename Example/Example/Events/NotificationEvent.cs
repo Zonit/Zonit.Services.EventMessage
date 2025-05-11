@@ -5,7 +5,7 @@ namespace Example.Events;
 internal class NotificationEvent(ILogger<NotificationEvent> _logger) : EventBase
 {
     protected override string EventName => "Article.Created";
-    protected override int EventWorker => 100;
+    protected override int WorkerCount => 100;
 
     protected override async Task HandleAsync(object payload, CancellationToken cancellationToken)
     {

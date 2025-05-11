@@ -1,19 +1,10 @@
 ﻿namespace Zonit.Services.EventMessage;
 
-public class PayloadModel
-{
-    /// <summary>
-    /// Dane zdarzenia
-    /// </summary>
-    public required object Data { get; init; }
-
-    /// <summary>
-    /// Token anulowania dla operacji
-    /// </summary>
-    public required CancellationToken CancellationToken { get; init; }
-}
-
-public class PayloadModel<TModel>
+/// <summary>
+/// Model ładunku z danymi dla handlerów
+/// </summary>
+/// <typeparam name="T">Typ danych ładunku</typeparam>
+public class PayloadModel<T>
 {
     /// <summary>
     /// Konstruktor domyślny
@@ -27,19 +18,42 @@ public class PayloadModel<TModel>
     /// </summary>
     /// <param name="data">Dane modelu</param>
     /// <param name="cancellationToken">Token anulowania</param>
-    public PayloadModel(TModel data, CancellationToken cancellationToken)
+    public PayloadModel(T data, CancellationToken cancellationToken = default)
     {
         Data = data;
         CancellationToken = cancellationToken;
     }
 
     /// <summary>
-    /// Dane zdarzenia
+    /// Dane ładunku
     /// </summary>
-    public required TModel Data { get; init; }
+    public required T Data { get; init; }
 
     /// <summary>
     /// Token anulowania dla operacji
     /// </summary>
-    public required CancellationToken CancellationToken { get; init; }
+    public CancellationToken CancellationToken { get; init; } = CancellationToken.None;
+}
+
+/// <summary>
+/// Nietypowany model ładunku jako klasa pochodna dla zgodności wstecznej
+/// </summary>
+public class PayloadModel : PayloadModel<object>
+{
+    /// <summary>
+    /// Konstruktor domyślny
+    /// </summary>
+    public PayloadModel() : base()
+    {
+    }
+
+    /// <summary>
+    /// Konstruktor z parametrami
+    /// </summary>
+    /// <param name="data">Dane modelu</param>
+    /// <param name="cancellationToken">Token anulowania</param>
+    public PayloadModel(object data, CancellationToken cancellationToken = default)
+        : base(data, cancellationToken)
+    {
+    }
 }

@@ -71,8 +71,8 @@ public class EventManagerService : IEventManager, IDisposable
                 }
             });
 
-        _logger.LogInformation("Subscribed to event '{EventName}' with {WorkerCount} workers and {Timeout}ms timeout",
-            eventName, workerCount, timeoutValue.TotalMilliseconds);
+        _logger.LogInformation("Subscribed to event '{EventName}' with {WorkerCount} workers and {Timeout} timeout",
+            eventName, workerCount, timeoutValue);
     }
 
     /// <summary>

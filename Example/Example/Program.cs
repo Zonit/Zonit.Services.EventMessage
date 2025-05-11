@@ -52,16 +52,16 @@ internal class Program
         var taskProvider = builder.Services.GetRequiredService<ITaskProvider>();
 
         string? textVariable;
-        while (!string.IsNullOrEmpty(textVariable = Console.ReadLine()))
-        {
-            taskProvider.Publish(new Article { Title = textVariable });
+        //while (!string.IsNullOrEmpty(textVariable = Console.ReadLine()))
+        //{
+        //    taskProvider.Publish(new Article { Title = textVariable });
 
-            foreach (var task in taskManager.GetActiveTasks())
-                Console.WriteLine($"[Aktywne zadanie] {task.Id} {task.Status}");
-        }
+        //    foreach (var task in taskManager.GetActiveTasks())
+        //        Console.WriteLine($"[Aktywne zadanie] {task.Id} {task.Status}");
+        //}
 
 
-        return;
+        //return;
 
         var eventBus = builder.Services.GetRequiredService<IEventProvider>();
 

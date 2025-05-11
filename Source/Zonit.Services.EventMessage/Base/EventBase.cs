@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Zonit.Services.EventMessage.Base;
 
 namespace Zonit.Services.EventMessage;
 
@@ -8,137 +9,20 @@ public interface IEventHandler : IHandler { }
 /// <summary>
 /// Klasa bazowa dla handlerów zdarzeń, automatyzująca proces rejestracji
 /// </summary>
-public abstract class EventBase : IEventHandler
+public abstract class EventBase<TModel> : HandlerBase<TModel>, IEventHandler
 {
     /// <summary>
     /// Nazwa zdarzenia, do którego subskrybuje handler
     /// </summary>
-    protected abstract string EventName { get; }
+    protected virtual string EventName => typeof(TModel).FullName ?? typeof(TModel).Name;
 
     /// <summary>
-    /// Liczba równoległych operacji obsługiwanych przez ten handler
+    /// Domyślny czas wykonania handlera zdarzeń (nadpisuje domyślną wartość z HandlerBase)
     /// </summary>
-    protected virtual int EventWorker { get; } = 10;
-
-    /// <summary>
-    /// Maksymalny czas wykonania handlera w sekundach (domyślnie 30 sekund)
-    /// </summary>
-    protected virtual TimeSpan ExecutionTimeoutSeconds { get; } = TimeSpan.FromSeconds(30);
-
-    /// <summary>
-    /// Właściwa metoda obsługi zdarzenia, do implementacji przez pochodne klasy
-    /// </summary>
-    /// <param name="data">Dane zdarzenia</param>
-    /// <param name="cancellationToken">Token anulowania</param>
-    /// <returns>Task reprezentujący operację asynchroniczną</returns>
-    protected abstract Task HandleAsync(object data, CancellationToken cancellationToken);
+    protected override TimeSpan ExecutionTimeout { get; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// Rejestruje handler w systemie zdarzeń
-    /// </summary>
-    /// <param name="serviceProvider">Dostawca usług DI</param>
-    /// <exception cref="ArgumentNullException">Jeśli serviceProvider jest null</exception>
-    public virtual void Subscribe(IServiceProvider serviceProvider)
-    {
-        ArgumentNullException.ThrowIfNull(serviceProvider);
-
-        if (string.IsNullOrEmpty(EventName))
-        {
-            throw new InvalidOperationException($"Event name cannot be null or empty in {GetType().Name}");
-        }
-
-        // Preferujemy IEventManager, ale używamy IEventProvider jeśli IEventManager nie jest dostępny
-        var eventManager = serviceProvider.GetService<IEventManager>()
-            ?? serviceProvider.GetRequiredService<IEventProvider>() as IEventManager;
-
-        if (eventManager == null)
-        {
-            throw new InvalidOperationException("Neither IEventManager nor IEventProvider implementing IEventManager is available in the service provider");
-        }
-
-        var logger = serviceProvider.GetRequiredService<ILogger<EventBase>>();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-
-        logger.LogInformation("Registering event handler for '{EventName}' with {WorkerCount} workers",
-            EventName, EventWorker);
-
-        // Używamy timeout z konfiguracji klasy
-        var timeout = ExecutionTimeoutSeconds;
-
-        eventManager.Subscribe(
-            EventName,
-            async payload =>
-            {
-                // Każdy handler działa w swoim własnym scope IoC
-                using var scope = scopeFactory.CreateScope();
-
-                try
-                {
-                    logger.LogDebug("Processing event '{EventName}'", EventName);
-
-                    // Rozwiązujemy konkretną instancję handlera z DI
-                    if (scope.ServiceProvider.GetRequiredService(GetType()) is not EventBase handler)
-                    {
-                        logger.LogError("Failed to resolve handler for event '{EventName}' of type {HandlerType}",
-                            EventName, GetType().Name);
-                        return;
-                    }
-
-                    // Wykonujemy handler z przekazanym tokenem anulowania
-                    await handler.HandleAsync(payload.Data, payload.CancellationToken);
-
-                    logger.LogDebug("Event '{EventName}' processed successfully", EventName);
-                }
-                catch (OperationCanceledException) when (payload.CancellationToken.IsCancellationRequested)
-                {
-                    logger.LogInformation("Event '{EventName}' processing was cancelled", EventName);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Error processing event '{EventName}'", EventName);
-                }
-            },
-            EventWorker,
-            timeout);
-    }
-}
-
-/// <summary>
-/// Generyczna wersja klasy bazowej dla handlerów zdarzeń z typowanymi danymi
-/// </summary>
-/// <typeparam name="TData">Typ danych zdarzenia</typeparam>
-public abstract class EventBase<TData> : EventBase
-{
-    /// <summary>
-    /// Domyślnie używa pełnej nazwy typu jako nazwy zdarzenia
-    /// </summary>
-    protected override string EventName => typeof(TData).FullName ?? typeof(TData).Name;
-
-    /// <summary>
-    /// Metoda obsługi zdarzenia z typowanymi danymi
-    /// </summary>
-    /// <param name="data">Dane zdarzenia</param>
-    /// <param name="cancellationToken">Token anulowania</param>
-    protected abstract Task HandleAsync(TData data, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Implementacja bazowej metody HandleAsync, konwertująca dane do odpowiedniego typu
-    /// </summary>
-    protected override async Task HandleAsync(object data, CancellationToken cancellationToken)
-    {
-        if (data is TData typedData)
-        {
-            await HandleAsync(typedData, cancellationToken);
-        }
-        else
-        {
-            throw new InvalidOperationException(
-                $"Expected event data of type {typeof(TData).Name}, but got {data?.GetType().Name ?? "null"}");
-        }
-    }
-
-    /// <summary>
-    /// Zastępuje metodę Subscribe, aby wykorzystać generyczną metodę Subscribe z IEventManager
     /// </summary>
     public override void Subscribe(IServiceProvider serviceProvider)
     {
@@ -149,58 +33,83 @@ public abstract class EventBase<TData> : EventBase
             throw new InvalidOperationException($"Event name cannot be null or empty in {GetType().Name}");
         }
 
-        // Próbujemy pobrać IEventManager bezpośrednio
-        var eventManager = serviceProvider.GetService<IEventManager>();
+        var eventManager = serviceProvider.GetRequiredService<IEventManager>();
+        var logger = serviceProvider.GetRequiredService<ILogger<EventBase<TModel>>>();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        // Jeśli dostępny jest IEventManager, używamy generycznej subskrypcji
-        if (eventManager != null)
+        logger.LogInformation("Registering event handler for '{EventName}' with {WorkerCount} workers",
+            EventName, WorkerCount);
+
+        // Używamy generycznej wersji subskrypcji jeśli możliwe
+        if (eventManager.SupportsGenericSubscription())
         {
-            var logger = serviceProvider.GetRequiredService<ILogger<EventBase>>();
-            var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-            var timeout = ExecutionTimeoutSeconds;
-
-            logger.LogInformation("Registering generic event handler for '{EventName}' with {WorkerCount} workers",
-                EventName, EventWorker);
-
-            eventManager.Subscribe<TData>(
+            eventManager.Subscribe<TModel>(CreateHandler(scopeFactory, logger), WorkerCount, ExecutionTimeout);
+        }
+        else
+        {
+            // Dla starszej wersji API używamy nietypowanej wersji
+            eventManager.Subscribe(
+                EventName,
                 async payload =>
                 {
-                    // Każdy handler działa w swoim własnym scope IoC
-                    using var scope = scopeFactory.CreateScope();
-
                     try
                     {
-                        logger.LogDebug("Processing event '{EventName}'", EventName);
-
-                        // Rozwiązujemy konkretną instancję handlera z DI
-                        if (scope.ServiceProvider.GetRequiredService(GetType()) is not EventBase<TData> handler)
+                        var handler = CreateHandler(scopeFactory, logger);
+                        if (payload.Data is TModel typedData)
                         {
-                            logger.LogError("Failed to resolve handler for event '{EventName}' of type {HandlerType}",
-                                EventName, GetType().Name);
-                            return;
+                            // Konwertujemy PayloadModel<object> na PayloadModel<TModel>
+                            var typedPayload = new PayloadModel<TModel>
+                            {
+                                Data = typedData,
+                                CancellationToken = payload.CancellationToken
+                            };
+
+                            await handler(typedPayload);
                         }
-
-                        // Wykonujemy handler z przekazanym tokenem anulowania
-                        await handler.HandleAsync(payload.Data, payload.CancellationToken);
-
-                        logger.LogDebug("Event '{EventName}' processed successfully", EventName);
+                        else
+                        {
+                            logger.LogError("Expected event data of type {ExpectedType}, but got {ActualType}",
+                                typeof(TModel).Name, payload.Data?.GetType().Name ?? "null");
+                        }
                     }
-                    catch (OperationCanceledException) when (payload.CancellationToken.IsCancellationRequested)
-                    {
-                        logger.LogInformation("Event '{EventName}' processing was cancelled", EventName);
-                    }
-                    catch (Exception ex)
+                    catch (Exception ex) when (!(ex is OperationCanceledException))
                     {
                         logger.LogError(ex, "Error processing event '{EventName}'", EventName);
                     }
                 },
-                EventWorker,
-                timeout);
+                WorkerCount,
+                ExecutionTimeout);
         }
-        else
-        {
-            // Używamy podstawowej metody, jeśli IEventManager nie jest dostępny
-            base.Subscribe(serviceProvider);
-        }
+    }
+}
+
+/// <summary>
+/// Klasa bazowa dla handlerów zdarzeń z nietypowanymi danymi
+/// </summary>
+public abstract class EventBase : EventBase<object>
+{
+    /// <summary>
+    /// Nazwa zdarzenia, do którego subskrybuje handler
+    /// </summary>
+    protected abstract override string EventName { get; }
+
+    /// <summary>
+    /// Właściwa metoda obsługi zdarzenia, do implementacji przez pochodne klasy
+    /// </summary>
+    /// <param name="data">Dane zdarzenia</param>
+    /// <param name="cancellationToken">Token anulowania</param>
+    protected abstract override Task HandleAsync(object data, CancellationToken cancellationToken);
+}
+
+public static class EventManagerExtensions
+{
+    /// <summary>
+    /// Sprawdza czy IEventManager obsługuje generyczną subskrypcję
+    /// </summary>
+    public static bool SupportsGenericSubscription(this IEventManager eventManager)
+    {
+        // Sprawdzamy czy implementacja IEventManager obsługuje generyczne metody
+        var type = eventManager.GetType();
+        return type.GetMethod("Subscribe", [typeof(Func<PayloadModel<object>, Task>), typeof(int), typeof(TimeSpan)]) != null;
     }
 }
