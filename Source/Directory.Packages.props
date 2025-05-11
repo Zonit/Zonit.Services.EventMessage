@@ -4,7 +4,7 @@
 		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<AssemblyVersion>0.1.8</AssemblyVersion>
+		<AssemblyVersion>0.1.9</AssemblyVersion>
 		<!-- Package info -->
 		<FileVersion>$(AssemblyVersion)</FileVersion>
 		<Version>$(AssemblyVersion)</Version>
@@ -28,8 +28,8 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
-		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.1" />
-		<PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.1" />
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.4" />
+		<PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.4" />
 	</ItemGroup>
 
 	<ItemGroup>
