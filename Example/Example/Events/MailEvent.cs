@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Zonit.Services.EventMessage;
 
-namespace Example;
+namespace Example.Events;
 
 internal class MailEvent(ILogger<MailEvent> _logger) : EventBase
 {

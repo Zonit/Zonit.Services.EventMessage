@@ -4,6 +4,7 @@ using Zonit.Services;
 using Zonit.Services.EventMessage;
 using Serilog;
 using Serilog.Events;
+using Example.Models;
 
 namespace Example;
 
@@ -20,30 +21,56 @@ internal class Program
         var builder = Host.CreateDefaultBuilder(args)
             .ConfigureServices((_, services) =>
             {
-                services.AddEventMessageService(); // <-- Add this line!
+                services.AddEventMessageService(); // <-- Dodane zarejestrowanie serwisu
 
                 services.AddSerilog((services, lc) => lc
                     .ReadFrom.Services(services)
                     .Enrich.FromLogContext()
                     .WriteTo.Console());
+            })
+            .Build();
 
-            }).Build();
-
+        // Uruchomienie hosta asynchronicznie
         builder.RunAsync();
+
+        // Rejestrowanie wydarzeń
+        var taskManager = builder.Services.GetRequiredService<ITaskManager>();
+
+        // Subskrypcja zmian
+        taskManager.EventOnChange(async taskManager =>
+        {
+            Console.WriteLine($"[Task] {taskManager.Id} {taskManager.Status}");
+
+            var article = taskManager.Payload.Data as Article;
+            if (article is not null)
+                Console.WriteLine($"[Article] Title: {article.Title}");
+
+            await Task.CompletedTask;
+        });
+
+        // Wysyłanie zadania
+        var taskProvider = builder.Services.GetRequiredService<ITaskProvider>();
+
+        string? textVariable;
+        //while (!string.IsNullOrEmpty(textVariable = Console.ReadLine()))
+        //{
+        //    taskProvider.Publish(new Article { Title = textVariable });
+
+        //    foreach (var task in taskManager.GetActiveTasks())
+        //        Console.WriteLine($"[Aktywne zadanie] {task.Id} {task.Status}");
+        //}
+
+
+        //return;
 
         var eventBus = builder.Services.GetRequiredService<IEventProvider>();
 
-        //for (var i = 0; i <= 10000; i++)
-        //    eventBus.Publish("Article.Created", new Test1("Title", $"{i}"));
-
         Console.Write("Enter text to publish: ");
-        string? textVariable;
         while (!string.IsNullOrEmpty(textVariable = Console.ReadLine()))
         {
             eventBus.Publish("Article.Created", new Test1("Title", textVariable));
-            //Console.Write("Enter text to publish: ");
+            eventBus.Publish(new Article { Title = textVariable });
         }
-
     }
 
     public record class Test1(string Name, string Context);

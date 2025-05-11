@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Zonit.Services.EventMessage;
 
-namespace Example;
+namespace Example.Events;
 internal class NotificationEvent(ILogger<NotificationEvent> _logger) : EventBase
 {
     protected override string EventName => "Article.Created";
