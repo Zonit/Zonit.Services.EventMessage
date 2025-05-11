@@ -31,13 +31,6 @@ public interface ITaskManager
     IReadOnlyCollection<TaskEventModel> GetActiveTasks(Guid? extensionId = null);
 
     /// <summary>
-    /// Gets all tasks for a specific entity (organization, project, user)
-    /// </summary>
-    /// <param name="entities">Entity filters to search by</param>
-    /// <returns>Collection of tasks matching the criteria</returns>
-    IReadOnlyCollection<TaskEventModel> GetTasksByEntities(EntitesModel entities);
-
-    /// <summary>
     /// Unsubscribes from tasks of a specific model type
     /// </summary>
     /// <typeparam name="TModel">Type of model to unsubscribe from</typeparam>

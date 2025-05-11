@@ -5,5 +5,5 @@
 /// </summary>
 public interface ITaskProvider
 {
-    void Publish(object payload, Guid? extensionId = null, EntitesModel? credential = null);
+    void Publish(object payload, Guid? extensionId = null);
 }

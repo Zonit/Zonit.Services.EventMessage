@@ -112,19 +112,6 @@ internal class TaskManagerService : ITaskManager, IDisposable
             .AsReadOnly();
     }
 
-    public IReadOnlyCollection<TaskEventModel> GetTasksByEntities(EntitesModel entities)
-    {
-        ArgumentNullException.ThrowIfNull(entities);
-
-        return _tasks.Values
-            .Where(t => (entities.OrganizationId == null || t.Entites.OrganizationId == entities.OrganizationId) &&
-                        (entities.ProjectId == null || t.Entites.ProjectId == entities.ProjectId) &&
-                        (entities.UserId == null || t.Entites.UserId == entities.UserId))
-            .OrderBy(t => t.CreatedAt)
-            .ToList()
-            .AsReadOnly();
-    }
-
     internal void NotifyChange(TaskEventModel task)
     {
         ArgumentNullException.ThrowIfNull(task);

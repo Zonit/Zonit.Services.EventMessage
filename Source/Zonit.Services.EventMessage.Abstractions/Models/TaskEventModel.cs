@@ -15,11 +15,6 @@ public class TaskEventModel
     public required PayloadModel Payload { get; init; }
 
     /// <summary>
-    /// Dodatkowe informacje, ID organizacj, ID projektu, ID użytkownika
-    /// </summary>
-    public EntitesModel Entites { get; init; } = new();
-
-    /// <summary>
     /// Postęp w zadaniu
     /// </summary>
     public double? Progress { get; set; }
