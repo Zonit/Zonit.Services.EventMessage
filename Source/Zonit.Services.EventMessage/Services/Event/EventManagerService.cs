@@ -1,10 +1,7 @@
-﻿namespace Zonit.Services.EventMessage.Services;
-
-using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using Zonit.Services.EventMessage.Abstractions.Managers;
+
+namespace Zonit.Services.EventMessage.Services;
 
 /// <summary>
 /// Implementacja usługi Event Bus z kontrolą współbieżności dla subskrypcji

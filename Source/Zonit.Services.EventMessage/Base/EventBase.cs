@@ -3,16 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Zonit.Services.EventMessage;
 
-/// <summary>
-/// Interfejs dla obsługi zdarzeń
-/// </summary>
-public interface IEventHandler
-{
-    /// <summary>
-    /// Rejestruje handler w systemie zdarzeń
-    /// </summary>
-    void Subscribe(IServiceProvider serviceProvider);
-}
+public interface IEventHandler : IHandler { }
 
 /// <summary>
 /// Klasa bazowa dla handlerów zdarzeń, automatyzująca proces rejestracji

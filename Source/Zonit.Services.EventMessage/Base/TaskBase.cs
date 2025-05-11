@@ -3,16 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Zonit.Services.EventMessage;
 
-/// <summary>
-/// Interfejs dla obsługi zadań
-/// </summary>
-public interface ITaskHandler
-{
-    /// <summary>
-    /// Rejestruje handler w systemie zadań
-    /// </summary>
-    void Subscribe(IServiceProvider serviceProvider);
-}
+public interface ITaskHandler : IHandler { }
 
 /// <summary>
 /// Generyczna klasa bazowa dla handlerów zadań z typowanymi danymi
