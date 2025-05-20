@@ -16,7 +16,7 @@ Install-Package Zonit.Services.EventMessage.Abstractions
 ![NuGet Version](https://img.shields.io/nuget/v/Zonit.Services.EventMessage.Abstractions.svg)
 ![NuGet Downloads](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.Abstractions.svg)
 
-### SQL Server Implementation
+### Implementation
 
 ```powershell
 Install-Package Zonit.Services.EventMessage.SqlServer
