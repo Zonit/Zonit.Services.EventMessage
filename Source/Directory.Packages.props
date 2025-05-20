@@ -32,6 +32,11 @@
 		<PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.4" />
 	</ItemGroup>
 
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0-preview.4.25258.110" />
+		<PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0-preview.4.25258.110" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<None Include="..\..\Readme.md" Pack="true" PackagePath="" Visible="false" />
 	</ItemGroup>

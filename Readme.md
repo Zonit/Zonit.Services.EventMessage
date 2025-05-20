@@ -1,28 +1,28 @@
-
 # Event Message Service
 
 ## Overview
 
 **Event Message Service** is a powerful .NET library that enables event-driven architecture for .NET 8/9 applications. It allows seamless, decoupled communication between application components via events, resulting in maintainable and flexible codebases.
 
+---
+
 ## :package: NuGet Packages
 
-### Abstraction
-```
+### Abstractions
+
+```powershell
 Install-Package Zonit.Services.EventMessage.Abstractions 
 ```
-
 ![NuGet Version](https://img.shields.io/nuget/v/Zonit.Services.EventMessage.Abstractions.svg)
-![NuGet](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.Abstractions.svg)
+![NuGet Downloads](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.Abstractions.svg)
 
 ### SQL Server Implementation
-```
+
+```powershell
 Install-Package Zonit.Services.EventMessage.SqlServer
 ```
-
 ![NuGet Version](https://img.shields.io/nuget/v/Zonit.Services.EventMessage.svg)
-![NuGet](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.svg)
-
+![NuGet Downloads](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.svg)
 
 ---
 
@@ -30,16 +30,16 @@ Install-Package Zonit.Services.EventMessage.SqlServer
 
 - **Event Publishing & Subscription:** Publish and subscribe to events with configurable concurrency control.
 - **Transaction Support:** Group events into transactions to be processed sequentially.
-- **Task Management:** Handle long-running tasks with status tracking.
+- **Task Management:** Handle long-running tasks with status tracking and monitoring.
 - **Automatic Handler Discovery:** Automatically discover and register event handlers.
-- **Concurrent Processing:** Control the number of concurrently running event handlers.
+- **Concurrent Processing:** Control the number of concurrently executed event handlers.
 - **Timeout Handling:** Configure timeouts for event processing.
 
 ---
 
 ## Requirements
 
-- **.NET 8** or **.NET 9**
+- .NET 8 or .NET 9
 
 ---
 
@@ -115,18 +115,89 @@ using (var transaction = eventProvider.Transaction())
 
 ---
 
+## Task Management System
+
+The Event Message Service includes a comprehensive task management system for handling long-running operations with status tracking and monitoring.
+
+### 1. Creating Task Handlers
+
+Implement task handlers by inheriting from `TaskBase<T>`, where `T` is your task model:
+
+```csharp
+internal class TestTask(ILogger<TestTask> _logger) : TaskBase<TestTaskModel>
+{
+    protected override async Task HandleAsync(TestTaskModel payload, CancellationToken cancellationToken)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        _logger.LogInformation("[TestTask] Title: {title}", payload.Title);
+    }
+}
+```
+
+---
+
+### 2. Publishing Tasks
+
+Submit tasks to the queue using the `ITaskProvider` interface:
+
+```csharp
+var taskProvider = serviceProvider.GetRequiredService<ITaskProvider>();
+taskProvider.Publish(new TestTaskModel { Title = "Test Task" });
+```
+
+---
+
+### 3. Monitoring Task Status
+
+Subscribe to task status change events:
+
+```csharp
+taskProvider.TaskStatusChanged += (sender, args) =>
+{
+    _logger.LogInformation("Task {taskId} status changed to {status}", args.TaskId, args.Status);
+};
+```
+
+---
+
+### 4. Viewing Active Tasks
+
+Retrieve and display the list of active tasks:
+
+```csharp
+var activeTasks = taskProvider.GetActiveTasks();
+foreach (var task in activeTasks)
+{
+    _logger.LogInformation("Active Task: {taskId} - {status}", task.Id, task.Status);
+}
+```
+
+---
+
+### 5. Task Lifecycle Management
+
+Tasks go through various states during their lifecycle:
+
+- `Pending`: Task is queued but not yet started.
+- `Processing`: Task is currently being processed.
+- `Completed`: Task finished successfully.
+- `Failed`: Task failed during processing.
+- `Cancelled`: Task was cancelled before completion.
+
+---
+
 ## Example Use Cases
 
-- Decoupling logic across independent application components
-- Event-driven workflows and operations
-- System notifications and real-time updates
-- Reliable background job queues
+- Decoupling logic between independent application components
+- Implementing event-driven workflows
+- Handling system notifications and real-time updates
+- Creating robust background job queues
 
 ---
 
 ## Contributing & Support
 
-Found a bug or have a feature request? Open an [issue](https://github.com/your-repository) on GitHub!
+Found a bug or have a feature request? Open an [issue](https://github.com/Zonit/Zonit.Services.EventMessage/issues/new) on GitHub!
 
 ---
 
