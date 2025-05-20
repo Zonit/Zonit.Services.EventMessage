@@ -16,4 +16,9 @@ public interface IEventTransaction : IDisposable, IAsyncDisposable
     /// Zatwierdza i przetwarza wszystkie zdarzenia w transakcji
     /// </summary>
     Task CommitAsync();
+
+    /// <summary>
+    /// Czeka na zakoñczenie wszystkich operacji transakcji
+    /// </summary>
+    Task WaitForCompletionAsync();
 }

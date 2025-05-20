@@ -10,7 +10,7 @@ namespace Example;
 
 internal class Program
 {
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
@@ -39,13 +39,19 @@ internal class Program
 
         using (var transaction = eventProvider.Transaction())
         {
+            Log.Information("Start");
             eventProvider2.Publish(new Test1Model { Title = "Test" });
             eventProvider2.Publish(new Test2Model { Title = "Test" });
+
+            Log.Information("Czekamy 2 sekundy"); await Task.Delay(TimeSpan.FromSeconds(2));
             eventProvider2.Publish(new Test3Model { Title = "Test" });
             eventProvider2.Publish(new Test4Model { Title = "Test" });
             eventProvider2.Publish(new Test5Model { Title = "Test" });
+            Log.Information("Zaczynamy");
+
         }
 
+        Log.Information("Reszta kodu...");
         Console.WriteLine("Start");
         Thread.Sleep(Timeout.Infinite);
 

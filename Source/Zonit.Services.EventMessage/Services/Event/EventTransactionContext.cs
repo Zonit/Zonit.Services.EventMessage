@@ -21,4 +21,9 @@ internal static class EventTransactionContext
     /// Pobiera bie¿¹c¹ transakcjê dla aktualnego kontekstu asynchronicznego
     /// </summary>
     public static EventTransaction? GetCurrent() => _currentTransaction.Value;
+
+    /// <summary>
+    /// Sprawdza, czy istnieje aktywna transakcja w bie¿¹cym kontekœcie
+    /// </summary>
+    public static bool HasActiveTransaction => _currentTransaction.Value != null;
 }
