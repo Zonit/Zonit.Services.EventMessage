@@ -20,9 +20,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{02EA
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{9319AB13-208E-4CEC-9F92-BD432517730D}"
 	ProjectSection(SolutionItems) = preProject
-		.github\workflows\bump-version.yml = .github\workflows\bump-version.yml
-		.github\workflows\publish.yml = .github\workflows\publish.yml
-		.github\workflows\update-packages.yml = .github\workflows\update-packages.yml
+		.github\workflows\AutoUpdateNugets.yml.yml = .github\workflows\AutoUpdateNugets.yml.yml
+		.github\workflows\CheckNugetAndPublish.yml = .github\workflows\CheckNugetAndPublish.yml
+		.github\workflows\PublishNuGet.yml = .github\workflows\PublishNuGet.yml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Elementy rozwiązania", "Elementy rozwiązania", "{8FB176BD-0036-D269-15EA-F86E90622887}"
