@@ -1,5 +1,6 @@
-﻿using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using Zonit.Services.EventMessage.Services.Event;
 
 namespace Zonit.Services.EventMessage.Services;
 
@@ -120,6 +121,16 @@ public class EventManagerService : IEventManager, IDisposable
         if (payload == null)
             throw new ArgumentNullException(nameof(payload));
 
+        // Sprawdź, czy istnieje aktywna transakcja
+        var currentTransaction = EventTransactionContext.GetCurrent();
+        if (currentTransaction != null)
+        {
+            // Jeśli tak, dodaj zdarzenie do transakcji
+            currentTransaction.Enqueue(payload, eventName);
+            return;
+        }
+
+        // Jeśli nie ma aktywnej transakcji, publikuj natychmiast
         string actualEventName = eventName ?? payload.GetType().FullName!;
 
         if (_subscriptions.TryGetValue(actualEventName, out var subscriptions))
@@ -194,10 +205,63 @@ public class EventManagerService : IEventManager, IDisposable
             _logger.LogError(ex, "Error waiting for semaphore for event '{EventName}'", eventName);
         }
     }
+    // Dodaj te dwa pola klasy
+    private readonly SemaphoreSlim _sequentialExecutionSemaphore = new SemaphoreSlim(1, 1);
 
     /// <summary>
-    /// Zwalnia wszystkie zasoby używane przez instancję EventManagerService
+    /// Tworzy nową transakcję zdarzeń
     /// </summary>
+    /// <returns>Interfejs transakcji zdarzeń</returns>
+    public IEventTransaction Transaction()
+    {
+        return new EventTransaction(this);
+    }
+
+    /// <summary>
+    /// Publikuje zdarzenie sekwencyjnie (używane przez transakcje)
+    /// </summary>
+    /// <param name="payload">Dane zdarzenia</param>
+    /// <param name="eventName">Opcjonalna nazwa zdarzenia</param>
+    internal async Task PublishSequentialAsync(object payload, string? eventName = null)
+    {
+        if (payload == null)
+            throw new ArgumentNullException(nameof(payload));
+
+        string actualEventName = eventName ?? payload.GetType().FullName!;
+
+        if (_subscriptions.TryGetValue(actualEventName, out var subscriptions))
+        {
+            var payloadModel = new PayloadModel
+            {
+                Data = payload,
+                CancellationToken = _globalCts.Token
+            };
+
+            // Tutaj używamy semafora do zapewnienia wykonania zdarzeń w sekwencji
+            await _sequentialExecutionSemaphore.WaitAsync();
+            try
+            {
+                foreach (var subscription in subscriptions)
+                {
+                    // Przetwarzamy każde zdarzenie synchronicznie
+                    await ProcessEventAsync(actualEventName, subscription, payloadModel);
+                }
+
+                _logger.LogDebug("Sequentially published event '{EventName}' to {SubscribersCount} subscribers",
+                    actualEventName, subscriptions.Count);
+            }
+            finally
+            {
+                _sequentialExecutionSemaphore.Release();
+            }
+        }
+        else
+        {
+            _logger.LogDebug("No subscribers for event '{EventName}'", actualEventName);
+        }
+    }
+
+    // W metodzie Dispose dodaj również zwolnienie nowego semafora:
     public void Dispose()
     {
         try
@@ -213,6 +277,9 @@ public class EventManagerService : IEventManager, IDisposable
                     subscription.Semaphore.Dispose();
                 }
             }
+
+            // Zwolnienie semafora sekwencyjnego wykonania
+            _sequentialExecutionSemaphore.Dispose();
 
             // Czyścimy słownik subskrypcji
             _subscriptions.Clear();

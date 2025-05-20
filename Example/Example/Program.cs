@@ -31,7 +31,25 @@ internal class Program
             .Build();
 
         // Uruchomienie hosta asynchronicznie
-        builder.RunAsync();
+        var host = builder.RunAsync();
+
+
+        var eventProvider = builder.Services.GetRequiredService<IEventProvider>();
+        var eventProvider2 = builder.Services.GetRequiredService<IEventProvider>();
+
+        using (var transaction = eventProvider.Transaction())
+        {
+            eventProvider2.Publish(new Test1Model { Title = "Test" });
+            eventProvider2.Publish(new Test2Model { Title = "Test" });
+            eventProvider2.Publish(new Test3Model { Title = "Test" });
+            eventProvider2.Publish(new Test4Model { Title = "Test" });
+            eventProvider2.Publish(new Test5Model { Title = "Test" });
+        }
+
+        Console.WriteLine("Start");
+        Thread.Sleep(Timeout.Infinite);
+
+        return;
 
         // Rejestrowanie wydarzeń
         var taskManager = builder.Services.GetRequiredService<ITaskManager>();
