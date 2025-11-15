@@ -1,49 +1,21 @@
 {
-  "Timestamp": "2025-11-15 19:15:17",
   "TargetFrameworks": [
     "net8.0",
     "net9.0",
     "net10.0"
   ],
-  "ProjectsFound": 3,
+  "Timestamp": "2025-11-15 20:46:12",
   "Summary": {
-    "DirectoryPackagesPropsUpdated": true,
-    "ProjectsUpdated": 3,
     "PackagesConfigured": 6,
-    "PackagesChanged": 4,
+    "CommonPackages": 2,
+    "ProjectsUpdated": 3,
+    "PackagesChanged": 0,
+    "DirectoryPackagesPropsUpdated": true,
+    "FrameworkSpecificPackages": 4,
     "FrameworksSet": "net8.0;net9.0;net10.0"
   },
-  "PackageChanges": [
-    {
-      "Package": "Microsoft.Extensions.DependencyInjection.Abstractions",
-      "Framework": "net9.0",
-      "OldVersion": "9.0.5",
-      "NewVersion": "9.0.11"
-    },
-    {
-      "Package": "Microsoft.Extensions.Hosting",
-      "Framework": "net9.0",
-      "OldVersion": "9.0.5",
-      "NewVersion": "9.0.11"
-    },
-    {
-      "Package": "Microsoft.Extensions.DependencyInjection.Abstractions",
-      "Framework": "net10.0",
-      "OldVersion": "10.0.0-preview.4.25258.110",
-      "NewVersion": "10.0.0"
-    },
-    {
-      "Package": "Microsoft.Extensions.Hosting",
-      "Framework": "net10.0",
-      "OldVersion": "10.0.0-preview.4.25258.110",
-      "NewVersion": "10.0.0"
-    }
-  ],
-  "ChangeSummary": [
-    "Microsoft.Extensions.DependencyInjection.Abstractions [net10.0]: 10.0.0-preview.4.25258.110 → 10.0.0",
-    "Microsoft.Extensions.DependencyInjection.Abstractions [net9.0]: 9.0.5 → 9.0.11",
-    "Microsoft.Extensions.Hosting [net10.0]: 10.0.0-preview.4.25258.110 → 10.0.0",
-    "Microsoft.Extensions.Hosting [net9.0]: 9.0.5 → 9.0.11"
-  ],
+  "ProjectsFound": 3,
+  "PackageChanges": [],
+  "ChangeSummaryText": "No package version changes - this might be a new setup or no updates available",
   "PackagesFound": 6
 }
