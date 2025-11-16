@@ -1,49 +1,63 @@
 {
-  "Timestamp": "2025-11-15 19:15:17",
+  "PackagesFound": 6,
+  "ChangeSummaryText": "Microsoft.Extensions.DependencyInjection.Abstractions [net8.0]: 8.0.2 -> 10.0.0\nMicrosoft.Extensions.DependencyInjection.Abstractions [net9.0]: 9.0.11 -> 10.0.0\nMicrosoft.Extensions.Hosting [net8.0]: 8.0.1 -> 10.0.0\nMicrosoft.Extensions.Hosting [net9.0]: 9.0.11 -> 10.0.0\nMicrosoft.Extensions.Hosting.Abstractions [net8.0]: 8.0.1 -> 10.0.0\nMicrosoft.Extensions.Hosting.Abstractions [net9.0]: 9.0.11 -> 10.0.0\nSerilog.Extensions.Hosting : 8.0.0 -> 9.0.0",
   "TargetFrameworks": [
     "net8.0",
     "net9.0",
     "net10.0"
   ],
   "ProjectsFound": 3,
-  "Summary": {
-    "DirectoryPackagesPropsUpdated": true,
-    "ProjectsUpdated": 3,
-    "PackagesConfigured": 6,
-    "PackagesChanged": 4,
-    "FrameworksSet": "net8.0;net9.0;net10.0"
-  },
   "PackageChanges": [
     {
       "Package": "Microsoft.Extensions.DependencyInjection.Abstractions",
-      "Framework": "net9.0",
-      "OldVersion": "9.0.5",
-      "NewVersion": "9.0.11"
+      "Framework": "net8.0",
+      "OldVersion": "8.0.2",
+      "NewVersion": "10.0.0"
     },
     {
       "Package": "Microsoft.Extensions.Hosting",
-      "Framework": "net9.0",
-      "OldVersion": "9.0.5",
-      "NewVersion": "9.0.11"
+      "Framework": "net8.0",
+      "OldVersion": "8.0.1",
+      "NewVersion": "10.0.0"
+    },
+    {
+      "Package": "Microsoft.Extensions.Hosting.Abstractions",
+      "Framework": "net8.0",
+      "OldVersion": "8.0.1",
+      "NewVersion": "10.0.0"
+    },
+    {
+      "Package": "Serilog.Extensions.Hosting",
+      "Framework": "net8.0",
+      "OldVersion": "8.0.0",
+      "NewVersion": "9.0.0"
     },
     {
       "Package": "Microsoft.Extensions.DependencyInjection.Abstractions",
-      "Framework": "net10.0",
-      "OldVersion": "10.0.0-preview.4.25258.110",
+      "Framework": "net9.0",
+      "OldVersion": "9.0.11",
       "NewVersion": "10.0.0"
     },
     {
       "Package": "Microsoft.Extensions.Hosting",
-      "Framework": "net10.0",
-      "OldVersion": "10.0.0-preview.4.25258.110",
+      "Framework": "net9.0",
+      "OldVersion": "9.0.11",
+      "NewVersion": "10.0.0"
+    },
+    {
+      "Package": "Microsoft.Extensions.Hosting.Abstractions",
+      "Framework": "net9.0",
+      "OldVersion": "9.0.11",
       "NewVersion": "10.0.0"
     }
   ],
-  "ChangeSummary": [
-    "Microsoft.Extensions.DependencyInjection.Abstractions [net10.0]: 10.0.0-preview.4.25258.110 → 10.0.0",
-    "Microsoft.Extensions.DependencyInjection.Abstractions [net9.0]: 9.0.5 → 9.0.11",
-    "Microsoft.Extensions.Hosting [net10.0]: 10.0.0-preview.4.25258.110 → 10.0.0",
-    "Microsoft.Extensions.Hosting [net9.0]: 9.0.5 → 9.0.11"
-  ],
-  "PackagesFound": 6
+  "Summary": {
+    "FrameworkSpecificGroups": 3,
+    "PackagesChanged": 7,
+    "FrameworksSet": "net8.0;net9.0;net10.0",
+    "ProjectsUpdated": 3,
+    "PackagesConfigured": 6,
+    "DirectoryPackagesPropsUpdated": true
+  },
+  "Timestamp": "2025-11-16 16:46:41"
 }
