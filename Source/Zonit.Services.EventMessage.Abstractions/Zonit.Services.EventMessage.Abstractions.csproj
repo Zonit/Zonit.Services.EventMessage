@@ -4,5 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Zonit.Messaging.Commands.Abstractions\Zonit.Messaging.Commands.Abstractions.csproj" />
+    <ProjectReference Include="..\Zonit.Messaging.Events.Abstractions\Zonit.Messaging.Events.Abstractions.csproj" />
+    <ProjectReference Include="..\Zonit.Messaging.Tasks.Abstractions\Zonit.Messaging.Tasks.Abstractions.csproj" />
   </ItemGroup>
 </Project>

@@ -8,6 +8,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Zonit.Messaging.Commands\Zonit.Messaging.Commands.csproj" />
+    <ProjectReference Include="..\Zonit.Messaging.Events\Zonit.Messaging.Events.csproj" />
+    <ProjectReference Include="..\Zonit.Messaging.Tasks\Zonit.Messaging.Tasks.csproj" />
     <ProjectReference Include="..\Zonit.Services.EventMessage.Abstractions\Zonit.Services.EventMessage.Abstractions.csproj" />
   </ItemGroup>
 </Project>

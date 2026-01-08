@@ -13,9 +13,20 @@
     <PackageReference Include="Serilog.Sinks.Console" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Main implementation projects -->
     <ProjectReference Include="..\..\Source\Zonit.Services.EventMessage\Zonit.Services.EventMessage.csproj" />
     <ProjectReference Include="..\..\Source\Zonit.Messaging.Commands\Zonit.Messaging.Commands.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Events\Zonit.Messaging.Events.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Tasks\Zonit.Messaging.Tasks.csproj" />
+    
+    <!-- Source Generators (AOT-safe registration) -->
     <ProjectReference Include="..\..\Source\Zonit.Messaging.Commands.SourceGenerators\Zonit.Messaging.Commands.SourceGenerators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Events.SourceGenerators\Zonit.Messaging.Events.SourceGenerators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Tasks.SourceGenerators\Zonit.Messaging.Tasks.SourceGenerators.csproj" 
                       OutputItemType="Analyzer" 
                       ReferenceOutputAssembly="false" />
   </ItemGroup>

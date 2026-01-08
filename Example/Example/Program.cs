@@ -1,101 +1,142 @@
-ï»¿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Zonit.Services;
-using Zonit.Services.EventMessage;
-using Serilog;
-using Serilog.Events;
-using Example.Models;
+using Example.Demo;
+using Zonit.Messaging.Commands;
+using Zonit.Messaging.Events;
+using Zonit.Messaging.Tasks;
 
 namespace Example;
 
+/// <summary>
+/// Aplikacja demonstracyjna dla Zonit.Messaging.
+/// 
+/// Pokazuje trzy g³ówne wzorce:
+/// 1. Commands - Request/Response (CQRS)
+/// 2. Events - Pub/Sub
+/// 3. Tasks - Background Jobs
+/// </summary>
 internal class Program
 {
     static async Task Main(string[] args)
     {
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-            .Enrich.FromLogContext()
-            .WriteTo.Console()
-            .CreateBootstrapLogger();
-
-        var builder = Host.CreateDefaultBuilder(args)
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        
+        // Buduj host z zarejestrowanymi serwisami
+        var host = Host.CreateDefaultBuilder(args)
             .ConfigureServices((_, services) =>
             {
-                services.AddEventMessageService(); // <-- Dodane zarejestrowanie serwisu
-
-                services.AddSerilog((services, lc) => lc
-                    .ReadFrom.Services(services)
-                    .Enrich.FromLogContext()
-                    .WriteTo.Console());
+                // ???????????????????????????????????????????????????????????
+                // COMMANDS (CQRS) - Request/Response
+                // ???????????????????????????????????????????????????????????
+                services.AddCommandProvider();
+                
+                // Opcja 1: Rêczna rejestracja (pokazana tutaj)
+                services.AddCommand<CreateUserHandler>();
+                services.AddCommand<GetUserHandler>();
+                services.AddCommand<DeleteUserHandler>();
+                
+                // Opcja 2: Source Generator (AOT-safe) - odkomentuj gdy SG wykryje handlery:
+                // services.AddCommandHandlers();
+                
+                // ???????????????????????????????????????????????????????????
+                // EVENTS (Pub/Sub) - wielokrotni subskrybenci
+                // ???????????????????????????????????????????????????????????
+                services.AddEventProvider();
+                
+                // ???????????????????????????????????????????????????????????
+                // TASKS (Background Jobs) - kolejkowane zadania
+                // ???????????????????????????????????????????????????????????
+                services.AddTaskProvider();
             })
             .Build();
 
-        // Uruchomienie hosta asynchronicznie
-        var host = builder.RunAsync();
+        // Uruchom serwisy w tle
+        await host.StartAsync();
 
+        // Pobierz serwisy z DI
+        var commandProvider = host.Services.GetRequiredService<ICommandProvider>();
+        var eventManager = host.Services.GetRequiredService<IEventManager>();
+        var eventProvider = host.Services.GetRequiredService<IEventProvider>();
+        var taskManager = host.Services.GetRequiredService<ITaskManager>();
+        var taskProvider = host.Services.GetRequiredService<ITaskProvider>();
 
-        var eventProvider = builder.Services.GetRequiredService<IEventProvider>();
-        var eventProvider2 = builder.Services.GetRequiredService<IEventProvider>();
+        // Uruchom interaktywne menu
+        await RunMenuAsync(commandProvider, eventManager, eventProvider, taskManager, taskProvider);
 
-        using (var transaction = eventProvider.Transaction())
+        // Zatrzymaj host
+        await host.StopAsync();
+    }
+
+    static async Task RunMenuAsync(
+        ICommandProvider commandProvider,
+        IEventManager eventManager,
+        IEventProvider eventProvider,
+        ITaskManager taskManager,
+        ITaskProvider taskProvider)
+    {
+        while (true)
         {
-            Log.Information("Start");
-            eventProvider2.Publish(new Test1Model { Title = "Test" });
-            eventProvider2.Publish(new Test2Model { Title = "Test" });
+            ClearConsole();
+            PrintHeader();
+            
+            Console.WriteLine("Wybierz modu³ do testowania:");
+            Console.WriteLine();
+            Console.WriteLine("  1. Commands - Request/Response (CQRS)");
+            Console.WriteLine("     Synchroniczna komunikacja, jeden handler, zwraca wynik");
+            Console.WriteLine();
+            Console.WriteLine("  2. Events - Pub/Sub");
+            Console.WriteLine("     Asynchroniczna komunikacja, wielu subskrybentów (fan-out)");
+            Console.WriteLine();
+            Console.WriteLine("  3. Tasks - Background Jobs");
+            Console.WriteLine("     D³ugo trwaj¹ce zadania, retry, kolejkowanie");
+            Console.WriteLine();
+            Console.WriteLine("  0. Wyjœcie");
+            Console.WriteLine();
+            Console.Write("Wybór: ");
 
-            Log.Information("Czekamy 2 sekundy"); await Task.Delay(TimeSpan.FromSeconds(2));
-            eventProvider2.Publish(new Test3Model { Title = "Test" });
-            eventProvider2.Publish(new Test4Model { Title = "Test" });
-            eventProvider2.Publish(new Test5Model { Title = "Test" });
-            Log.Information("Zaczynamy");
+            var choice = Console.ReadLine();
 
-        }
-
-        Log.Information("Reszta kodu...");
-        Console.WriteLine("Start");
-        Thread.Sleep(Timeout.Infinite);
-
-        return;
-
-        // Rejestrowanie wydarzeÅ„
-        var taskManager = builder.Services.GetRequiredService<ITaskManager>();
-
-        // Subskrypcja zmian
-        taskManager.EventOnChange(async taskManager =>
-        {
-            Console.WriteLine($"[Task] {taskManager.Id} {taskManager.Status}");
-
-            var article = taskManager.Payload.Data as Article;
-            if (article is not null)
-                Console.WriteLine($"[Article] Title: {article.Title}");
-
-            await Task.CompletedTask;
-        });
-
-        // WysyÅ‚anie zadania
-        var taskProvider = builder.Services.GetRequiredService<ITaskProvider>();
-
-        string? textVariable;
-        //while (!string.IsNullOrEmpty(textVariable = Console.ReadLine()))
-        //{
-        //    taskProvider.Publish(new Article { Title = textVariable });
-
-        //    foreach (var task in taskManager.GetActiveTasks())
-        //        Console.WriteLine($"[Aktywne zadanie] {task.Id} {task.Status}");
-        //}
-
-
-        //return;
-
-        var eventBus = builder.Services.GetRequiredService<IEventProvider>();
-
-        Console.Write("Enter text to publish: ");
-        while (!string.IsNullOrEmpty(textVariable = Console.ReadLine()))
-        {
-            eventBus.Publish("Article.Created", new Test1("Title", textVariable));
-            eventBus.Publish(new Article { Title = textVariable });
+            switch (choice)
+            {
+                case "1":
+                    await CommandsDemo.RunAsync(commandProvider);
+                    break;
+                case "2":
+                    await EventsDemo.RunAsync(eventManager, eventProvider);
+                    break;
+                case "3":
+                    await TasksDemo.RunAsync(taskManager, taskProvider);
+                    break;
+                case "0":
+                    Console.WriteLine("\nDo widzenia!");
+                    return;
+                default:
+                    Console.WriteLine("Nieprawid³owy wybór. Naciœnij Enter...");
+                    Console.ReadLine();
+                    break;
+            }
         }
     }
 
-    public record class Test1(string Name, string Context);
+    static void PrintHeader()
+    {
+        Console.WriteLine("????????????????????????????????????????????????????????????????");
+        Console.WriteLine("?                                                              ?");
+        Console.WriteLine("?              ?? ZONIT.MESSAGING DEMO ??                     ?");
+        Console.WriteLine("?                                                              ?");
+        Console.WriteLine("?     Biblioteka do komunikacji w architekturze CQRS/DDD      ?");
+        Console.WriteLine("?                                                              ?");
+        Console.WriteLine("????????????????????????????????????????????????????????????????");
+        Console.WriteLine("?  Commands  ?  Request/Response  ?  ICommandProvider         ?");
+        Console.WriteLine("?  Events    ?  Pub/Sub           ?  IEventProvider           ?");
+        Console.WriteLine("?  Tasks     ?  Background Jobs   ?  ITaskProvider            ?");
+        Console.WriteLine("????????????????????????????????????????????????????????????????");
+        Console.WriteLine();
+    }
+
+    static void ClearConsole()
+    {
+        try { Console.Clear(); }
+        catch (IOException) { Console.WriteLine(new string('\n', 50)); }
+    }
 }
