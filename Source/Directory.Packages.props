@@ -29,6 +29,9 @@
 		<PackageVersion Include="Serilog" Version="4.3.0" />
 		<PackageVersion Include="Serilog.Extensions.Hosting" Version="9.0.0" />
 		<PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+		<!-- Source Generators -->
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
 		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />

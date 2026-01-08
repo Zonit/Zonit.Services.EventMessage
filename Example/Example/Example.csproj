@@ -14,5 +14,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Source\Zonit.Services.EventMessage\Zonit.Services.EventMessage.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Commands\Zonit.Messaging.Commands.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Commands.SourceGenerators\Zonit.Messaging.Commands.SourceGenerators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
