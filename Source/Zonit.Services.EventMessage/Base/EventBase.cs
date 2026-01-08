@@ -1,28 +1,52 @@
-Ôªøusing Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Zonit.Services.EventMessage.Base;
 
 namespace Zonit.Services.EventMessage;
 
+/// <summary>
+/// [LEGACY] Interfejs bazowy dla handlerÛw eventÛw.
+/// </summary>
+/// <remarks>
+/// <para><b>Ten interfejs jest przestarza≥y.</b></para>
+/// <para>
+/// <b>Migracja:</b><br/>
+/// Uøyj: <c>Zonit.Messaging.Events.IEventHandler&lt;TEvent&gt;</c>
+/// </para>
+/// </remarks>
+[Obsolete("Use Zonit.Messaging.Events.IEventHandler<TEvent> instead.")]
 public interface IEventHandler : IHandler { }
 
 /// <summary>
-/// Klasa bazowa dla handler√≥w zdarze≈Ñ, automatyzujƒÖca proces rejestracji
+/// [LEGACY] Klasa bazowa dla handlerÛw zdarzeÒ, automatyzujπca proces rejestracji.
 /// </summary>
+/// <remarks>
+/// <para><b>Ta klasa jest przestarza≥a.</b></para>
+/// <para>
+/// <b>Migracja:</b><br/>
+/// Zamiast dziedziczenia po <c>EventBase&lt;TModel&gt;</c>,<br/>
+/// zaimplementuj interfejs <c>Zonit.Messaging.Events.IEventHandler&lt;TEvent&gt;</c><br/>
+/// i zarejestruj przez:<br/>
+/// <c>services.AddEventHandler&lt;MyHandler, MyEvent&gt;()</c>
+/// </para>
+/// </remarks>
+[Obsolete("Inherit from Zonit.Messaging.Events.IEventHandler<TEvent> instead and register with AddEventHandler<THandler, TEvent>().")]
+[EditorBrowsable(EditorBrowsableState.Never)]
 public abstract class EventBase<TModel> : HandlerBase<TModel>, IEventHandler
 {
     /// <summary>
-    /// Nazwa zdarzenia, do kt√≥rego subskrybuje handler
+    /// Nazwa zdarzenia, do ktÛrego subskrybuje handler.
     /// </summary>
     protected virtual string EventName => typeof(TModel).FullName ?? typeof(TModel).Name;
 
     /// <summary>
-    /// Domy≈õlny czas wykonania handlera zdarze≈Ñ (nadpisuje domy≈õlnƒÖ warto≈õƒá z HandlerBase)
+    /// Domyúlny czas wykonania handlera zdarzeÒ.
     /// </summary>
     protected override TimeSpan ExecutionTimeout { get; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Rejestruje handler w systemie zdarze≈Ñ
+    /// Rejestruje handler w systemie zdarzeÒ.
     /// </summary>
     public override void Subscribe(IServiceProvider serviceProvider)
     {
@@ -33,83 +57,46 @@ public abstract class EventBase<TModel> : HandlerBase<TModel>, IEventHandler
             throw new InvalidOperationException($"Event name cannot be null or empty in {GetType().Name}");
         }
 
-        var eventManager = serviceProvider.GetRequiredService<IEventManager>();
+        // Uøywamy nowego Zonit.Messaging.Events.IEventManager
+        var eventManager = serviceProvider.GetRequiredService<Zonit.Messaging.Events.IEventManager>();
         var logger = serviceProvider.GetRequiredService<ILogger<EventBase<TModel>>>();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
-        logger.LogInformation("Registering event handler for '{EventName}' with {WorkerCount} workers",
+        logger.LogInformation("[LEGACY] Registering event handler for '{EventName}' with {WorkerCount} workers",
             EventName, WorkerCount);
 
-        // U≈ºywamy generycznej wersji subskrypcji je≈õli mo≈ºliwe
-        if (eventManager.SupportsGenericSubscription())
+        // Subskrybuj przez nowe API
+        eventManager.Subscribe<TModel>(async payload =>
         {
-            eventManager.Subscribe<TModel>(CreateHandler(scopeFactory, logger), WorkerCount, ExecutionTimeout);
-        }
-        else
+            var handler = CreateHandler(scopeFactory, logger);
+            var legacyPayload = new PayloadModel<TModel>
+            {
+                Data = payload.Data,
+                CancellationToken = payload.CancellationToken
+            };
+            await handler(legacyPayload);
+        }, new Zonit.Messaging.Events.EventSubscriptionOptions
         {
-            // Dla starszej wersji API u≈ºywamy nietypowanej wersji
-            eventManager.Subscribe(
-                EventName,
-                async payload =>
-                {
-                    try
-                    {
-                        var handler = CreateHandler(scopeFactory, logger);
-                        if (payload.Data is TModel typedData)
-                        {
-                            // Konwertujemy PayloadModel<object> na PayloadModel<TModel>
-                            var typedPayload = new PayloadModel<TModel>
-                            {
-                                Data = typedData,
-                                CancellationToken = payload.CancellationToken
-                            };
-
-                            await handler(typedPayload);
-                        }
-                        else
-                        {
-                            logger.LogError("Expected event data of type {ExpectedType}, but got {ActualType}",
-                                typeof(TModel).Name, payload.Data?.GetType().Name ?? "null");
-                        }
-                    }
-                    catch (Exception ex) when (!(ex is OperationCanceledException))
-                    {
-                        logger.LogError(ex, "Error processing event '{EventName}'", EventName);
-                    }
-                },
-                WorkerCount,
-                ExecutionTimeout);
-        }
+            WorkerCount = WorkerCount,
+            Timeout = ExecutionTimeout
+        });
     }
 }
 
 /// <summary>
-/// Klasa bazowa dla handler√≥w zdarze≈Ñ z nietypowanymi danymi
+/// [LEGACY] Klasa bazowa dla handlerÛw zdarzeÒ z nietypowanymi danymi.
 /// </summary>
+[Obsolete("Use Zonit.Messaging.Events.IEventHandler<TEvent> instead.")]
+[EditorBrowsable(EditorBrowsableState.Never)]
 public abstract class EventBase : EventBase<object>
 {
     /// <summary>
-    /// Nazwa zdarzenia, do kt√≥rego subskrybuje handler
+    /// Nazwa zdarzenia, do ktÛrego subskrybuje handler.
     /// </summary>
     protected abstract override string EventName { get; }
 
     /// <summary>
-    /// W≈Ça≈õciwa metoda obs≈Çugi zdarzenia, do implementacji przez pochodne klasy
+    /// W≥aúciwa metoda obs≥ugi zdarzenia.
     /// </summary>
-    /// <param name="data">Dane zdarzenia</param>
-    /// <param name="cancellationToken">Token anulowania</param>
     protected abstract override Task HandleAsync(object data, CancellationToken cancellationToken);
-}
-
-public static class EventManagerExtensions
-{
-    /// <summary>
-    /// Sprawdza czy IEventManager obs≈Çuguje generycznƒÖ subskrypcjƒô
-    /// </summary>
-    public static bool SupportsGenericSubscription(this IEventManager eventManager)
-    {
-        // Sprawdzamy czy implementacja IEventManager obs≈Çuguje generyczne metody
-        var type = eventManager.GetType();
-        return type.GetMethod("Subscribe", [typeof(Func<PayloadModel<object>, Task>), typeof(int), typeof(TimeSpan)]) != null;
-    }
 }

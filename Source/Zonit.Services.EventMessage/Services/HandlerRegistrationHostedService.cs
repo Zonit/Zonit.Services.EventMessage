@@ -1,12 +1,24 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Zonit.Services.EventMessage.Services;
 
 /// <summary>
-/// Uniwersalna usługa do rejestracji handlerów
+/// [LEGACY] Uniwersalna usługa do rejestracji handlerów przez reflection.
 /// </summary>
+/// <remarks>
+/// <para><b>Ten serwis jest przestarzały.</b></para>
+/// <para>
+/// <b>Migracja:</b><br/>
+/// Użyj Source Generator:<br/>
+/// - <c>services.AddEventHandlers()</c> (z namespace Zonit.Messaging.Events)<br/>
+/// - <c>services.AddTaskHandlers()</c> (z namespace Zonit.Messaging.Tasks)
+/// </para>
+/// </remarks>
+[Obsolete("Use AddEventHandlers() or AddTaskHandlers() from Source Generators instead.")]
+[EditorBrowsable(EditorBrowsableState.Never)]
 public class HandlerRegistrationHostedService<THandler>(
     IServiceProvider serviceProvider,
     ILogger<HandlerRegistrationHostedService<THandler>> logger) : IHostedService where THandler : IHandler

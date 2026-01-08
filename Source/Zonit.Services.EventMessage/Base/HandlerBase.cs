@@ -1,12 +1,23 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Zonit.Services.EventMessage.Base;
 
 /// <summary>
-/// Abstrakcyjna klasa bazowa dla handlerów (zdarzeń i zadań)
+/// [LEGACY] Abstrakcyjna klasa bazowa dla handlerów (zdarzeń i zadań).
 /// </summary>
+/// <remarks>
+/// <para><b>Ta klasa jest przestarzała.</b></para>
+/// <para>
+/// <b>Migracja:</b><br/>
+/// Dla eventów użyj: <c>Zonit.Messaging.Events.IEventHandler&lt;TEvent&gt;</c><br/>
+/// Dla zadań użyj: <c>Zonit.Messaging.Tasks.ITaskHandler&lt;TTask&gt;</c>
+/// </para>
+/// </remarks>
 /// <typeparam name="T">Typ ładunku (payload) obsługiwany przez handler</typeparam>
+[Obsolete("Use Zonit.Messaging.Events.IEventHandler<T> or Zonit.Messaging.Tasks.ITaskHandler<T> instead.")]
+[EditorBrowsable(EditorBrowsableState.Never)]
 public abstract class HandlerBase<T> : IHandler
 {
     /// <summary>
