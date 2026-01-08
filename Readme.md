@@ -1,188 +1,258 @@
-# Event Message Service
+# Zonit.Messaging
 
-## Overview
-
-**Event Message Service** is a powerful .NET library that enables event-driven architecture for .NET 8/9 applications. It allows seamless, decoupled communication between application components via events, resulting in maintainable and flexible codebases.
+A lightweight, high-performance .NET library for building **event-driven** and **CQRS** architectures with full **AOT/Trimming support**.
 
 ---
 
 ## :package: NuGet Packages
 
-### Abstractions
+### Current Packages (Zonit.Messaging)
+
+| Package | Version | Downloads | Description |
+|---------|---------|-----------|-------------|
+| **Zonit.Messaging.Commands** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Commands.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Commands.svg) | CQRS Commands & Queries |
+| **Zonit.Messaging.Commands.Abstractions** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Commands.Abstractions.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Commands.Abstractions.svg) | Command interfaces |
+| **Zonit.Messaging.Events** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Events.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Events.svg) | Pub/Sub Events |
+| **Zonit.Messaging.Events.Abstractions** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Events.Abstractions.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Events.Abstractions.svg) | Event interfaces |
+| **Zonit.Messaging.Tasks** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Tasks.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Tasks.svg) | Background Jobs |
+| **Zonit.Messaging.Tasks.Abstractions** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Tasks.Abstractions.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Tasks.Abstractions.svg) | Task interfaces |
+
+### Legacy Packages (deprecated)
+
+| Package | Version | Downloads | Status |
+|---------|---------|-----------|--------|
+| **Zonit.Services.EventMessage** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Services.EventMessage.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.svg) | :warning: Deprecated |
+| **Zonit.Services.EventMessage.Abstractions** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Services.EventMessage.Abstractions.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.Abstractions.svg) | :warning: Deprecated |
 
 ```powershell
-Install-Package Zonit.Services.EventMessage.Abstractions 
-```
-![NuGet Version](https://img.shields.io/nuget/v/Zonit.Services.EventMessage.Abstractions.svg)
-![NuGet Downloads](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.Abstractions.svg)
+# Install current packages
+dotnet add package Zonit.Messaging.Commands
+dotnet add package Zonit.Messaging.Events
+dotnet add package Zonit.Messaging.Tasks
 
-### Implementation
-
-```powershell
-Install-Package Zonit.Services.EventMessage
+# Or via NuGet Package Manager
+Install-Package Zonit.Messaging.Commands
+Install-Package Zonit.Messaging.Events
+Install-Package Zonit.Messaging.Tasks
 ```
-![NuGet Version](https://img.shields.io/nuget/v/Zonit.Services.EventMessage.svg)
-![NuGet Downloads](https://img.shields.io/nuget/dt/Zonit.Services.EventMessage.svg)
 
 ---
 
 ## Features
 
-- **Event Publishing & Subscription:** Publish and subscribe to events with configurable concurrency control.
-- **Transaction Support:** Group events into transactions to be processed sequentially.
-- **Task Management:** Handle long-running tasks with status tracking and monitoring.
-- **Automatic Handler Discovery:** Automatically discover and register event handlers.
-- **Concurrent Processing:** Control the number of concurrently executed event handlers.
-- **Timeout Handling:** Configure timeouts for event processing.
+- **Commands (CQRS)** - Request/Response pattern with strongly-typed handlers
+- **Events (Pub/Sub)** - Publish events to multiple subscribers (fan-out)
+- **Tasks (Background Jobs)** - Queue long-running operations with retry support
+- **Transaction Support** - Group events into transactions to be processed sequentially
+- **AOT-Safe** - Full Native AOT and trimming support via Source Generators
+- **Concurrent Processing** - Control the number of concurrently executed handlers
+- **Timeout Handling** - Configure timeouts for processing
 
 ---
 
 ## Requirements
 
-- .NET 8 or .NET 9
+- .NET 8, .NET 9 or .NET 10
 
 ---
 
-## Installation
+## Quick Start
 
-Add the Event Message Service to your application using the service collection extension:
+Add services to your application:
 
 ```csharp
-services.AddEventMessageService();
+using Zonit.Messaging.Commands;
+using Zonit.Messaging.Events;
+using Zonit.Messaging.Tasks;
+
+// Commands (CQRS)
+services.AddCommandProvider();
+services.AddCommand<CreateUserHandler>();
+
+// Events (Pub/Sub)
+services.AddEventProvider();
+
+// Tasks (Background Jobs)
+services.AddTaskProvider();
 ```
 
 ---
 
-## Usage
+## Commands (CQRS)
 
-### 1. Creating Event Handlers
+Request/Response pattern - send a request, get a typed response.
 
-Implement event handlers by inheriting from `EventBase<T>`, where `T` is your event model type:
+### 1. Define a Command
 
 ```csharp
-internal class Test1Event(ILogger<Test1Event> _logger) : EventBase<Test1Model>
+public record CreateUserCommand(string Name, string Email) : IRequest<Guid>;
+```
+
+### 2. Implement Handler
+
+```csharp
+public class CreateUserHandler : IRequestHandler<CreateUserCommand, Guid>
 {
-    protected override async Task HandleAsync(Test1Model payload, CancellationToken cancellationToken)
+    public async Task<Guid> HandleAsync(CreateUserCommand request, CancellationToken ct = default)
     {
-        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
-        _logger.LogInformation("[TestEvent] Number: {number} Title: {title}", 1, payload);
+        var userId = Guid.NewGuid();
+        // Save to database...
+        return userId;
     }
 }
 ```
 
----
-
-### 2. Publishing Events
-
-Publish events using the `IEventProvider` interface:
+### 3. Send Command
 
 ```csharp
-var eventProvider = serviceProvider.GetRequiredService<IEventProvider>();
-eventProvider.Publish(new Test1Model { Title = "Test" });
+var commandProvider = serviceProvider.GetRequiredService<ICommandProvider>();
+var userId = await commandProvider.SendAsync(new CreateUserCommand("John", "john@example.com"));
 ```
 
 ---
 
-### 3. Using Transactions
+## Events (Pub/Sub)
 
-Group events to be processed sequentially within a transaction:
+Publish events to multiple subscribers asynchronously.
+
+### 1. Subscribe to Events
 
 ```csharp
-using (var transaction = eventProvider.Transaction())
+var eventManager = serviceProvider.GetRequiredService<IEventManager>();
+
+eventManager.Subscribe<UserCreatedEvent>(async payload =>
 {
-    eventProvider.Publish(new Test1Model { Title = "Test1" });
-    eventProvider.Publish(new Test2Model { Title = "Test2" });
+    Console.WriteLine($"User created: {payload.Data.Name}");
+});
+```
+
+### 2. Publish Events
+
+```csharp
+var eventProvider = serviceProvider.GetRequiredService<IEventProvider>();
+eventProvider.Publish(new UserCreatedEvent { Name = "John" });
+```
+
+### 3. Using Transactions
+
+Group events to be processed sequentially:
+
+```csharp
+using (var transaction = eventProvider.CreateTransaction())
+{
+    eventProvider.Publish(new Event1());
+    eventProvider.Publish(new Event2());
     // Events are queued until the transaction is completed
 }
 // Events are processed after the transaction is disposed
 ```
-
----
 
 ### 4. Awaiting Transaction Completion
 
 Wait for all events in a transaction to be processed:
 
 ```csharp
-using (var transaction = eventProvider.Transaction())
+using (var transaction = eventProvider.CreateTransaction())
 {
-    eventProvider.Publish(new Test1Model { Title = "Test" });
-
-    // Wait for all events to be processed
+    eventProvider.Publish(new OrderCreatedEvent());
+    eventProvider.Publish(new InventoryUpdatedEvent());
+    
+    // Wait for all events to be processed before continuing
     await transaction.WaitForCompletionAsync();
 }
 ```
 
 ---
 
-## Task Management System
+## Tasks (Background Jobs)
 
-The Event Message Service includes a comprehensive task management system for handling long-running operations with status tracking and monitoring.
+Long-running operations with retry support.
 
-### 1. Creating Task Handlers
-
-Implement task handlers by inheriting from `TaskBase<T>`, where `T` is your task model:
+### 1. Subscribe to Tasks
 
 ```csharp
-internal class TestTask(ILogger<TestTask> _logger) : TaskBase<TestTaskModel>
+var taskManager = serviceProvider.GetRequiredService<ITaskManager>();
+
+taskManager.Subscribe<SendEmailTask>(async payload =>
 {
-    protected override async Task HandleAsync(TestTaskModel payload, CancellationToken cancellationToken)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
-        _logger.LogInformation("[TestTask] Title: {title}", payload.Title);
-    }
-}
+    await SendEmailAsync(payload.Data.To, payload.Data.Subject);
+}, new TaskSubscriptionOptions
+{
+    WorkerCount = 5,
+    MaxRetries = 3,
+    RetryDelay = TimeSpan.FromSeconds(10)
+});
 ```
 
----
-
-### 2. Publishing Tasks
-
-Submit tasks to the queue using the `ITaskProvider` interface:
+### 2. Publish Tasks
 
 ```csharp
 var taskProvider = serviceProvider.GetRequiredService<ITaskProvider>();
-taskProvider.Publish(new TestTaskModel { Title = "Test Task" });
+taskProvider.Publish(new SendEmailTask { To = "user@example.com", Subject = "Welcome!" });
 ```
-
----
 
 ### 3. Monitoring Task Status
 
 Subscribe to task status change events:
 
 ```csharp
-taskProvider.TaskStatusChanged += (sender, args) =>
-{
-    _logger.LogInformation("Task {taskId} status changed to {status}", args.TaskId, args.Status);
-};
-```
+var taskManager = serviceProvider.GetRequiredService<ITaskManager>();
 
----
+taskManager.EventOnChange(async (taskEvent) =>
+{
+    Console.WriteLine($"Task {taskEvent.Id} status changed to {taskEvent.Status}");
+});
+```
 
 ### 4. Viewing Active Tasks
 
 Retrieve and display the list of active tasks:
 
 ```csharp
-var activeTasks = taskProvider.GetActiveTasks();
+var activeTasks = taskManager.GetActiveTasks();
 foreach (var task in activeTasks)
 {
-    _logger.LogInformation("Active Task: {taskId} - {status}", task.Id, task.Status);
+    Console.WriteLine($"Active Task: {task.Id} - {task.Status}");
 }
+```
+
+### 5. Task Lifecycle
+
+Tasks go through various states during their lifecycle:
+
+- **Pending** - Task is queued but not yet started
+- **Processing** - Task is currently being processed
+- **Completed** - Task finished successfully
+- **Failed** - Task failed during processing
+- **Cancelled** - Task was cancelled before completion
+
+---
+
+## Source Generators (AOT-Safe)
+
+Auto-register handlers at compile time for Native AOT support:
+
+```csharp
+services.AddCommandHandlers();
+services.AddEventHandlers();
+services.AddTaskHandlers();
 ```
 
 ---
 
-### 5. Task Lifecycle Management
+## Migration from Legacy API
 
-Tasks go through various states during their lifecycle:
+If upgrading from `Zonit.Services.EventMessage`:
 
-- `Pending`: Task is queued but not yet started.
-- `Processing`: Task is currently being processed.
-- `Completed`: Task finished successfully.
-- `Failed`: Task failed during processing.
-- `Cancelled`: Task was cancelled before completion.
+| Legacy (deprecated) | New |
+|---------------------|-----|
+| `using Zonit.Services.EventMessage;` | `using Zonit.Messaging.Events;` |
+| `services.AddEventMessageService()` | `services.AddEventProvider()` |
+| `EventBase<T>` | `IEventHandler<T>` |
+| `TaskBase<T>` | `ITaskHandler<T>` |
+| `PayloadModel<T>` | `EventPayload<T>` / `TaskPayload<T>` |
+
+Legacy code continues to work but shows deprecation warnings.
 
 ---
 
@@ -192,6 +262,7 @@ Tasks go through various states during their lifecycle:
 - Implementing event-driven workflows
 - Handling system notifications and real-time updates
 - Creating robust background job queues
+- CQRS architecture implementation
 
 ---
 
