@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -24,7 +25,7 @@ public static class TaskServiceCollectionExtensions
     /// </summary>
     /// <typeparam name="THandler">Typ handlera</typeparam>
     /// <typeparam name="TTask">Typ zadania</typeparam>
-    public static IServiceCollection AddTaskHandler<THandler, TTask>(this IServiceCollection services)
+    public static IServiceCollection AddTaskHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TTask>(this IServiceCollection services)
         where THandler : class, ITaskHandler<TTask>
         where TTask : notnull
     {
@@ -36,7 +37,7 @@ public static class TaskServiceCollectionExtensions
     /// <summary>
     /// Rejestruje handler zadañ z opcjami.
     /// </summary>
-    public static IServiceCollection AddTaskHandler<THandler, TTask>(
+    public static IServiceCollection AddTaskHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TTask>(
         this IServiceCollection services,
         Action<TaskSubscriptionOptions> configureOptions)
         where THandler : class, ITaskHandler<TTask>

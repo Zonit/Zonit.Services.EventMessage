@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Zonit.Messaging.Events.Hosting;
@@ -26,7 +27,7 @@ public static class EventServiceCollectionExtensions
     /// </summary>
     /// <typeparam name="THandler">Typ handlera</typeparam>
     /// <typeparam name="TEvent">Typ eventu</typeparam>
-    public static IServiceCollection AddEventHandler<THandler, TEvent>(this IServiceCollection services)
+    public static IServiceCollection AddEventHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>(this IServiceCollection services)
         where THandler : class, IEventHandler<TEvent>
         where TEvent : notnull
     {
@@ -39,7 +40,7 @@ public static class EventServiceCollectionExtensions
     /// <summary>
     /// Rejestruje handler eventów z okreœlonymi opcjami.
     /// </summary>
-    public static IServiceCollection AddEventHandler<THandler, TEvent>(
+    public static IServiceCollection AddEventHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>(
         this IServiceCollection services,
         Action<EventSubscriptionOptions> configureOptions)
         where THandler : class, IEventHandler<TEvent>

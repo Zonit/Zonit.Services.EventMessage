@@ -14,12 +14,20 @@ public sealed class TaskManager : ITaskManager, IDisposable
     private readonly TaskStateStore _stateStore = new();
     private readonly ILogger<TaskManager> _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly Timer _cleanupTimer;
     private bool _disposed;
 
     public TaskManager(ILogger<TaskManager> logger, IServiceProvider serviceProvider)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        
+        // Cleanup starych tasków co 5 minut (usuwa zakoñczone starsze ni¿ 30 min)
+        _cleanupTimer = new Timer(
+            _ => _stateStore.CleanupOldTasks(TimeSpan.FromMinutes(30)),
+            null,
+            TimeSpan.FromMinutes(5),
+            TimeSpan.FromMinutes(5));
     }
 
     public void Publish<TTask>(TTask payload, Guid? extensionId = null) where TTask : notnull
@@ -125,6 +133,8 @@ public sealed class TaskManager : ITaskManager, IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        _cleanupTimer.Dispose();
+        
         foreach (var subscriptions in _subscriptions.Values)
         {
             foreach (var subscription in subscriptions)

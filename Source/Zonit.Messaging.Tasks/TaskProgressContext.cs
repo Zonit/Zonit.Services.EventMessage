@@ -114,10 +114,17 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
     /// </summary>
     private void UpdateTimeBasedProgress()
     {
+        // Double-check pattern dla thread-safety
         if (_disposed) return;
 
-        lock (_lock)
+        // U¿ywamy Monitor.TryEnter ¿eby unikn¹æ blokowania timera
+        if (!Monitor.TryEnter(_lock))
+            return;
+
+        try
         {
+            if (_disposed) return;
+            
             if (_currentStepIndex < 0 || _currentStepIndex >= _steps.Length)
             {
                 return;
@@ -128,6 +135,10 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
 
             // Wysy³aj tylko gdy % siê zmieni (bez zmiany message)
             NotifyIfChanged(progress, stepNumber, message: null);
+        }
+        finally
+        {
+            Monitor.Exit(_lock);
         }
     }
 
@@ -207,8 +218,14 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
     public void Dispose()
     {
         if (_disposed) return;
-        _disposed = true;
         
+        lock (_lock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
+        
+        // Dispose timera poza lockiem ¿eby unikn¹æ deadlocka
         _progressTimer?.Dispose();
     }
 }

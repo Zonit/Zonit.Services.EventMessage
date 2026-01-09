@@ -6,6 +6,9 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AssemblyVersion>1.0.0</AssemblyVersion>
+		<!-- AOT and Trimming support (not for Source Generators which target netstandard2.0) -->
+		<IsTrimmable Condition="'$(IsRoslynComponent)' != 'true'">true</IsTrimmable>
+		<IsAotCompatible Condition="'$(IsRoslynComponent)' != 'true'">true</IsAotCompatible>
 		<!-- Package info -->
 		<FileVersion>$(AssemblyVersion)</FileVersion>
 		<Version>$(AssemblyVersion)</Version>
