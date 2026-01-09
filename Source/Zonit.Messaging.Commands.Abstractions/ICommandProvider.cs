@@ -10,9 +10,9 @@ public interface ICommandProvider
     /// Wysy≥a request do odpowiedniego handlera i zwraca odpowiedü.
     /// Typ odpowiedzi jest inferowany z typu requestu.
     /// </summary>
-    /// <typeparam name="TResponse">Typ odpowiedzi (inferowany z IRequest&lt;TResponse&gt;)</typeparam>
+    /// <typeparam name="TResponse">Typ odpowiedzi (inferowany z IRequest&lt;TResponse&gt;, automatycznie nullable)</typeparam>
     /// <param name="request">Request do wys≥ania</param>
     /// <param name="cancellationToken">Token anulowania</param>
-    /// <returns>Odpowiedü z handlera</returns>
-    Task<TResponse> SendAsync<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
+    /// <returns>Odpowiedü z handlera (moøe byÊ null)</returns>
+    Task<TResponse?> SendAsync<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) where TResponse : notnull;
 }

@@ -3,9 +3,9 @@ namespace Zonit.Messaging.Commands;
 /// <summary>
 /// Wewnêtrzny interfejs wrappera - ukrywa generyki dla DI.
 /// </summary>
-internal interface IRequestHandlerWrapper<TResponse>
+internal interface IRequestHandlerWrapper<TResponse> where TResponse : notnull
 {
-    Task<TResponse> HandleAsync(object request, CancellationToken cancellationToken);
+    Task<TResponse?> HandleAsync(object request, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -13,6 +13,7 @@ internal interface IRequestHandlerWrapper<TResponse>
 /// </summary>
 internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandlerWrapper<TResponse>
     where TRequest : IRequest<TResponse>
+    where TResponse : notnull
 {
     private readonly IRequestHandler<TRequest, TResponse> _handler;
 
@@ -21,6 +22,6 @@ internal sealed class RequestHandlerWrapper<TRequest, TResponse> : IRequestHandl
         _handler = handler;
     }
 
-    public Task<TResponse> HandleAsync(object request, CancellationToken cancellationToken)
+    public Task<TResponse?> HandleAsync(object request, CancellationToken cancellationToken)
         => _handler.HandleAsync((TRequest)request, cancellationToken);
 }

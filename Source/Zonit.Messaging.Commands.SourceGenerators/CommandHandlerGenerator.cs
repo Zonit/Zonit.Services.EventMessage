@@ -174,7 +174,7 @@ public class CommandHandlerGenerator : IIncrementalGenerator
         sb.AppendLine("        _serviceProvider = serviceProvider;");
         sb.AppendLine("    }");
         sb.AppendLine();
-        sb.AppendLine("    public Task<TResponse> SendAsync<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)");
+        sb.AppendLine("    public Task<TResponse?> SendAsync<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) where TResponse : notnull");
         sb.AppendLine("    {");
         sb.AppendLine("        ArgumentNullException.ThrowIfNull(request);");
         sb.AppendLine();
@@ -193,13 +193,15 @@ public class CommandHandlerGenerator : IIncrementalGenerator
         sb.AppendLine("        };");
         sb.AppendLine("    }");
         sb.AppendLine();
-        sb.AppendLine("    private Task<TResponse> HandleAsync<TRequest, THandlerResponse, TResponse>(TRequest request, CancellationToken cancellationToken)");
+        sb.AppendLine("    private Task<TResponse?> HandleAsync<TRequest, THandlerResponse, TResponse>(TRequest request, CancellationToken cancellationToken)");
         sb.AppendLine("        where TRequest : IRequest<THandlerResponse>");
+        sb.AppendLine("        where THandlerResponse : notnull");
+        sb.AppendLine("        where TResponse : notnull");
         sb.AppendLine("    {");
         sb.AppendLine("        var handler = _serviceProvider.GetRequiredService<IRequestHandler<TRequest, THandlerResponse>>();");
         sb.AppendLine("        ");
         sb.AppendLine("        // Safe cast - typy s¹ weryfikowane compile-time przez switch expression");
-        sb.AppendLine("        return (Task<TResponse>)(object)handler.HandleAsync(request, cancellationToken);");
+        sb.AppendLine("        return (Task<TResponse?>)(object)handler.HandleAsync(request, cancellationToken);");
         sb.AppendLine("    }");
         sb.AppendLine("}");
 
