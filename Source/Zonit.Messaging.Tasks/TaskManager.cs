@@ -11,6 +11,7 @@ namespace Zonit.Messaging.Tasks;
 public sealed class TaskManager : ITaskManager, IDisposable
 {
     private readonly ConcurrentDictionary<string, List<TaskSubscription>> _subscriptions = new();
+    private readonly TaskStateStore _stateStore = new();
     private readonly ILogger<TaskManager> _logger;
     private readonly IServiceProvider _serviceProvider;
     private bool _disposed;
@@ -42,7 +43,7 @@ public sealed class TaskManager : ITaskManager, IDisposable
         {
             try
             {
-                subscription.Enqueue(payload, extensionId);
+                subscription.Enqueue(payload, extensionId, _stateStore);
             }
             catch (Exception ex)
             {
@@ -57,7 +58,7 @@ public sealed class TaskManager : ITaskManager, IDisposable
         var taskName = GetTaskName<TTask>();
         var opts = options ?? new TaskSubscriptionOptions();
 
-        var subscription = new TaskSubscription<TTask>(handler, opts, _logger);
+        var subscription = new TaskSubscription<TTask>(handler, opts, _logger, opts.ProgressSteps);
         
         _subscriptions.AddOrUpdate(
             taskName,
@@ -70,10 +71,11 @@ public sealed class TaskManager : ITaskManager, IDisposable
             opts.WorkerCount);
     }
 
+
     public void Subscribe(string taskName, Func<TaskPayload<object>, Task> handler, TaskSubscriptionOptions? options = null)
     {
         var opts = options ?? new TaskSubscriptionOptions();
-        var subscription = new TaskSubscription<object>(handler, opts, _logger);
+        var subscription = new TaskSubscription<object>(handler, opts, _logger, opts.ProgressSteps);
 
         _subscriptions.AddOrUpdate(
             taskName,
@@ -84,6 +86,36 @@ public sealed class TaskManager : ITaskManager, IDisposable
             "Subscribed to task '{TaskName}' with {WorkerCount} workers", 
             taskName, 
             opts.WorkerCount);
+    }
+
+    public IDisposable OnChange(Action<TaskState> handler)
+    {
+        return _stateStore.Subscribe(handler);
+    }
+
+    public IDisposable OnChange(Guid extensionId, Action<TaskState> handler)
+    {
+        return _stateStore.Subscribe(extensionId, handler);
+    }
+
+    public IDisposable OnChange<TTask>(Action<TaskState<TTask>> handler) where TTask : notnull
+    {
+        return _stateStore.Subscribe(handler);
+    }
+
+    public IDisposable OnChange<TTask>(Guid extensionId, Action<TaskState<TTask>> handler) where TTask : notnull
+    {
+        return _stateStore.Subscribe(extensionId, handler);
+    }
+
+    public IReadOnlyCollection<TaskState> GetActiveTasks(Guid? extensionId = null)
+    {
+        return _stateStore.GetActiveTasks(extensionId);
+    }
+
+    public TaskState? GetTaskState(Guid taskId)
+    {
+        return _stateStore.GetTaskState(taskId);
     }
 
     private static string GetTaskName<TTask>() => typeof(TTask).FullName ?? typeof(TTask).Name;
@@ -109,7 +141,7 @@ public sealed class TaskManager : ITaskManager, IDisposable
 /// </summary>
 internal abstract class TaskSubscription : IDisposable
 {
-    public abstract void Enqueue(object payload, Guid? extensionId);
+    public abstract void Enqueue(object payload, Guid? extensionId, TaskStateStore stateStore);
     public abstract void Dispose();
 }
 
@@ -118,23 +150,27 @@ internal abstract class TaskSubscription : IDisposable
 /// </summary>
 internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : notnull
 {
-    private readonly Channel<(TTask Data, Guid? ExtensionId)> _channel;
+    private readonly Channel<(TTask Data, Guid? ExtensionId, Guid TaskId)> _channel;
     private readonly Func<TaskPayload<TTask>, Task> _handler;
     private readonly TaskSubscriptionOptions _options;
     private readonly ILogger _logger;
+    private readonly TaskProgressStep[]? _progressSteps;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task[] _workers;
+    private TaskStateStore? _stateStore;
 
     public TaskSubscription(
         Func<TaskPayload<TTask>, Task> handler, 
         TaskSubscriptionOptions options, 
-        ILogger logger)
+        ILogger logger,
+        TaskProgressStep[]? progressSteps)
     {
         _handler = handler;
         _options = options;
         _logger = logger;
+        _progressSteps = progressSteps;
 
-        _channel = Channel.CreateUnbounded<(TTask, Guid?)>(new UnboundedChannelOptions
+        _channel = Channel.CreateUnbounded<(TTask, Guid?, Guid)>(new UnboundedChannelOptions
         {
             SingleReader = options.WorkerCount == 1,
             SingleWriter = false
@@ -147,11 +183,18 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
         }
     }
 
-    public override void Enqueue(object payload, Guid? extensionId)
+    public override void Enqueue(object payload, Guid? extensionId, TaskStateStore stateStore)
     {
+        _stateStore = stateStore;
+        
         if (payload is TTask typedPayload)
         {
-            _channel.Writer.TryWrite((typedPayload, extensionId));
+            var taskId = Guid.NewGuid();
+            var totalSteps = _progressSteps?.Length;
+            var taskType = typeof(TTask).FullName ?? typeof(TTask).Name;
+            
+            stateStore.CreateTask(taskId, taskType, extensionId, totalSteps, typedPayload);
+            _channel.Writer.TryWrite((typedPayload, extensionId, taskId));
         }
         else
         {
@@ -164,13 +207,16 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
 
     private async Task ProcessTasksAsync(CancellationToken cancellationToken)
     {
-        await foreach (var (data, extensionId) in _channel.Reader.ReadAllAsync(cancellationToken))
+        await foreach (var (data, extensionId, taskId) in _channel.Reader.ReadAllAsync(cancellationToken))
         {
             var retryCount = 0;
             var success = false;
 
+            _stateStore?.StartTask(taskId);
+
             while (!success && retryCount <= _options.MaxRetries)
             {
+                TaskProgressContext? progressContext = null;
                 try
                 {
                     using var timeoutCts = new CancellationTokenSource(_options.Timeout);
@@ -178,22 +224,34 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
                         timeoutCts.Token, 
                         cancellationToken);
 
+                    progressContext = new TaskProgressContext(
+                        _progressSteps,
+                        (progress, step, message) => _stateStore?.UpdateProgress(taskId, progress, step, message));
+
                     var payload = new TaskPayload<TTask>
                     {
                         Data = data,
+                        TaskId = taskId,
                         CancellationToken = linkedCts.Token,
-                        ExtensionId = extensionId
+                        ExtensionId = extensionId,
+                        Progress = progressContext
                     };
 
                     await _handler(payload);
                     success = true;
+                    
+                    progressContext.Dispose();
+                    _stateStore?.CompleteTask(taskId);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
+                    progressContext?.Dispose();
+                    _stateStore?.CancelTask(taskId);
                     return;
                 }
                 catch (Exception ex)
                 {
+                    progressContext?.Dispose();
                     retryCount++;
                     
                     if (retryCount <= _options.MaxRetries)
@@ -207,6 +265,8 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
                     {
                         _logger.LogError(ex, "Error processing task of type '{TaskType}' after {RetryCount} retries", 
                             typeof(TTask).Name, retryCount);
+                        
+                        _stateStore?.FailTask(taskId);
                         
                         if (!_options.ContinueOnError)
                             throw;

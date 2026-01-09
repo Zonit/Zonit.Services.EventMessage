@@ -35,4 +35,9 @@ public sealed class TaskPayload<TData>
     /// Opcjonalne metadane zadania.
     /// </summary>
     public IReadOnlyDictionary<string, object>? Metadata { get; init; }
+
+    /// <summary>
+    /// Kontekst postêpu zadania. Dostêpny tylko dla handlerów dziedzicz¹cych z TaskHandler.
+    /// </summary>
+    public ITaskProgressContext? Progress { get; init; }
 }

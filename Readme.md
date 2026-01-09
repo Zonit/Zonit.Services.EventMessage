@@ -166,9 +166,9 @@ using (var transaction = eventProvider.CreateTransaction())
 
 ## Tasks (Background Jobs)
 
-Long-running operations with retry support.
+Long-running operations with retry support and **real-time progress tracking**.
 
-### 1. Subscribe to Tasks
+### 1. Simple Task Handler
 
 ```csharp
 var taskManager = serviceProvider.GetRequiredService<ITaskManager>();
@@ -184,39 +184,154 @@ taskManager.Subscribe<SendEmailTask>(async payload =>
 });
 ```
 
-### 2. Publish Tasks
+### 2. Task Handler with Progress Tracking
+
+Create handlers with automatic progress reporting based on estimated step durations:
+
+```csharp
+public class ImportDataHandler : TaskHandler<ImportDataTask>
+{
+    public override int WorkerCount => 2;
+    public override TimeSpan Timeout => TimeSpan.FromMinutes(10);
+
+    // Define steps with estimated durations for smooth progress calculation
+    public override TaskProgressStep[]? ProgressSteps =>
+    [
+        new(TimeSpan.FromSeconds(5), "Connecting to source..."),
+        new(TimeSpan.FromSeconds(10), "Downloading data..."),
+        new(TimeSpan.FromSeconds(15), "Processing records..."),
+        new(TimeSpan.FromSeconds(5), "Saving to database...")
+    ];
+
+    protected override async Task HandleAsync(
+        ImportDataTask data,
+        ITaskProgressContext progress,
+        CancellationToken cancellationToken)
+    {
+        // Step 1: Connect (0% -> 14%)
+        await progress.NextAsync();
+        await ConnectAsync(cancellationToken);
+
+        // Step 2: Download (14% -> 43%)
+        await progress.NextAsync();
+        await DownloadAsync(data.Url, cancellationToken);
+
+        // Step 3: Process (43% -> 86%)
+        await progress.NextAsync();
+        for (int i = 0; i < data.RecordCount; i++)
+        {
+            await ProcessRecordAsync(i, cancellationToken);
+            // Update message without changing step
+            await progress.SetMessageAsync($"Processing {i + 1}/{data.RecordCount}...");
+        }
+
+        // Step 4: Save (86% -> 100%)
+        await progress.NextAsync();
+        await SaveAsync(cancellationToken);
+    }
+}
+```
+
+Register the handler:
+
+```csharp
+var handler = new ImportDataHandler();
+taskManager.Subscribe<ImportDataTask>(
+    async payload => await ((ITaskHandler<ImportDataTask>)handler).HandleAsync(payload),
+    new TaskSubscriptionOptions
+    {
+        WorkerCount = handler.WorkerCount,
+        Timeout = handler.Timeout,
+        ProgressSteps = handler.ProgressSteps
+    });
+```
+
+### 3. Publish Tasks
 
 ```csharp
 var taskProvider = serviceProvider.GetRequiredService<ITaskProvider>();
+
+// Simple publish
 taskProvider.Publish(new SendEmailTask { To = "user@example.com", Subject = "Welcome!" });
+
+// Publish with ExtensionId for filtering
+var organizationId = Guid.NewGuid();
+taskProvider.Publish(new ImportDataTask("data.csv", 1000), organizationId);
 ```
 
-### 3. Monitoring Task Status
+### 4. Monitoring Task Progress
 
-Subscribe to task status change events:
+Subscribe to real-time progress updates:
 
 ```csharp
 var taskManager = serviceProvider.GetRequiredService<ITaskManager>();
 
-taskManager.EventOnChange(async (taskEvent) =>
+// Monitor all tasks
+taskManager.OnChange(state =>
 {
-    Console.WriteLine($"Task {taskEvent.Id} status changed to {taskEvent.Status}");
+    Console.WriteLine($"Task {state.TaskType}: {state.Progress}% - {state.Message}");
+    Console.WriteLine($"Duration: {state.Duration}");
+});
+
+// Monitor specific task type with typed data access
+taskManager.OnChange<ImportDataTask>(state =>
+{
+    Console.WriteLine($"Import from {state.Data.Source}: {state.Progress}%");
+    Console.WriteLine($"Step {state.CurrentStep}/{state.TotalSteps}: {state.Message}");
+    Console.WriteLine($"Running for: {state.Duration?.TotalSeconds:F1}s");
+});
+
+// Monitor tasks for specific ExtensionId (e.g., organization)
+taskManager.OnChange(organizationId, state =>
+{
+    // Only tasks published with this ExtensionId
+    UpdateProgressBar(state.Progress ?? 0);
+});
+
+// Monitor specific type for specific ExtensionId
+taskManager.OnChange<ImportDataTask>(organizationId, state =>
+{
+    // Typed access + filtered by ExtensionId
+    UpdateUI(state.Data, state.Progress);
 });
 ```
 
-### 4. Viewing Active Tasks
+### 5. TaskState Properties
 
-Retrieve and display the list of active tasks:
+| Property | Type | Description |
+|----------|------|-------------|
+| `TaskId` | `Guid` | Unique task identifier |
+| `ExtensionId` | `Guid?` | Optional identifier for filtering (e.g., user/organization ID) |
+| `TaskType` | `string` | Full type name of the task |
+| `Status` | `TaskStatus` | Current status (Pending, Processing, Completed, Failed, Cancelled) |
+| `Progress` | `int?` | Progress 0-100 (null if not tracked) |
+| `CurrentStep` | `int?` | Current step number (1-based) |
+| `TotalSteps` | `int?` | Total number of steps |
+| `Message` | `string?` | Current status message |
+| `CreatedAt` | `DateTimeOffset` | When task was created |
+| `StartedAt` | `DateTimeOffset?` | When processing started |
+| `CompletedAt` | `DateTimeOffset?` | When processing finished |
+| `Duration` | `TimeSpan?` | Time elapsed since start |
+
+### 6. Viewing Active Tasks
 
 ```csharp
+// Get all active tasks
 var activeTasks = taskManager.GetActiveTasks();
+
+// Get active tasks for specific ExtensionId
+var orgTasks = taskManager.GetActiveTasks(organizationId);
+
 foreach (var task in activeTasks)
 {
-    Console.WriteLine($"Active Task: {task.Id} - {task.Status}");
+    Console.WriteLine($"{task.TaskType}: {task.Status} ({task.Progress}%) - {task.Duration}");
 }
+
+// Get specific task state
+var state = taskManager.GetTaskState(taskId);
 ```
 
-### 5. Task Lifecycle
+### 7. Task Lifecycle
 
 Tasks go through various states during their lifecycle:
 
@@ -225,6 +340,15 @@ Tasks go through various states during their lifecycle:
 - **Completed** - Task finished successfully
 - **Failed** - Task failed during processing
 - **Cancelled** - Task was cancelled before completion
+
+### 8. Progress Tracking Features
+
+- **Time-based smooth progress**: Progress is automatically calculated based on estimated step durations
+- **Automatic updates**: Progress updates are sent automatically (max 100 times, when % changes)
+- **Step tracking**: Know which step is currently executing and how many remain
+- **Duration tracking**: Real-time duration available via `Duration` property
+- **Typed access**: Use `OnChange<T>` to get typed access to task data
+- **Efficient filtering**: Filter by `ExtensionId` at the system level for better performance
 
 ---
 

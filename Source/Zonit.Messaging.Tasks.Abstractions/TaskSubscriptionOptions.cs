@@ -29,4 +29,10 @@ public sealed class TaskSubscriptionOptions
     /// OpóŸnienie miêdzy próbami ponowienia.
     /// </summary>
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Definicja kroków postêpu dla zadania.
+    /// Null = brak œledzenia postêpu.
+    /// </summary>
+    public TaskProgressStep[]? ProgressSteps { get; set; }
 }

@@ -1,15 +1,42 @@
 ﻿using Example.Models;
 using Microsoft.Extensions.Logging;
-using Zonit.Services.EventMessage;
+using Zonit.Messaging.Tasks;
 
 namespace Example.Events;
 
-internal class ArticleEvent(ILogger<MailEvent> _logger) : TaskBase<Article>
+/// <summary>
+/// Przykładowy handler zadania z postępem.
+/// </summary>
+internal class ArticleEvent(ILogger<ArticleEvent> _logger) : TaskHandler<Article>
 {
-    protected override async Task HandleAsync(Article data, CancellationToken cancellationToken)
-    {
-        await Task.Delay(10000, cancellationToken);
+    public override int WorkerCount => 5;
+    public override TimeSpan Timeout => TimeSpan.FromMinutes(2);
 
-        _logger.LogInformation("[Article] Otrzymano: {PayloadX}", data);
+    public override TaskProgressStep[]? ProgressSteps =>
+    [
+        new(TimeSpan.FromSeconds(10), "Pobieranie artykułu..."),
+        new(TimeSpan.FromSeconds(15), "Przetwarzanie treści..."),
+        new(TimeSpan.FromSeconds(5), "Zapisywanie...")
+    ];
+
+    protected override async Task HandleAsync(
+        Article data,
+        ITaskProgressContext progress,
+        CancellationToken cancellationToken)
+    {
+        // Krok 1: Pobieranie
+        await progress.NextAsync();
+        await Task.Delay(10000, cancellationToken);
+        _logger.LogInformation("[Article] Pobrano artykuł: {Title}", data.Title);
+
+        // Krok 2: Przetwarzanie
+        await progress.NextAsync();
+        await Task.Delay(15000, cancellationToken);
+        _logger.LogInformation("[Article] Przetworzono artykuł");
+
+        // Krok 3: Zapisywanie
+        await progress.NextAsync();
+        await Task.Delay(5000, cancellationToken);
+        _logger.LogInformation("[Article] Zapisano artykuł: {Title}", data.Title);
     }
 }
