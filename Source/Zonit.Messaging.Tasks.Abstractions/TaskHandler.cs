@@ -25,6 +25,18 @@ public abstract class TaskHandler<TData> : ITaskHandler<TData> where TData : not
     public virtual TaskProgressStep[]? ProgressSteps => null;
 
     /// <summary>
+    /// Tytu³ zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Null = u¿ywana bêdzie nazwa typu zadania.
+    /// </summary>
+    public virtual string? Title => null;
+
+    /// <summary>
+    /// Opis zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Null = brak opisu.
+    /// </summary>
+    public virtual string? Description => null;
+
+    /// <summary>
     /// Metoda obs³ugi zadania - implementowana przez u¿ytkownika.
     /// </summary>
     /// <param name="data">Dane zadania.</param>

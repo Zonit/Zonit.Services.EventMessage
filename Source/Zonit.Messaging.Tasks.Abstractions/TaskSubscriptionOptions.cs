@@ -35,4 +35,16 @@ public sealed class TaskSubscriptionOptions
     /// Null = brak œledzenia postêpu.
     /// </summary>
     public TaskProgressStep[]? ProgressSteps { get; set; }
+
+    /// <summary>
+    /// Tytu³ zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Null = u¿ywana bêdzie nazwa typu zadania.
+    /// </summary>
+    public string? Title { get; set; }
+
+    /// <summary>
+    /// Opis zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Null = brak opisu.
+    /// </summary>
+    public string? Description { get; set; }
 }

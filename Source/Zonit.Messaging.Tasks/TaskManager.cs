@@ -203,7 +203,7 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
             var totalSteps = _progressSteps?.Length;
             var taskType = typeof(TTask).FullName ?? typeof(TTask).Name;
             
-            stateStore.CreateTask(taskId, taskType, extensionId, totalSteps, typedPayload);
+            stateStore.CreateTask(taskId, taskType, extensionId, totalSteps, _options.Title, _options.Description, typedPayload);
             _channel.Writer.TryWrite((typedPayload, extensionId, taskId));
         }
         else

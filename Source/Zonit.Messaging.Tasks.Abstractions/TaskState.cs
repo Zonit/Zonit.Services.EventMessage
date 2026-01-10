@@ -21,6 +21,18 @@ public class TaskState
     public required string TaskType { get; init; }
 
     /// <summary>
+    /// Tytu³ zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Null = u¿ywana bêdzie nazwa typu zadania.
+    /// </summary>
+    public string? Title { get; init; }
+
+    /// <summary>
+    /// Opis zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Null = brak opisu.
+    /// </summary>
+    public string? Description { get; init; }
+
+    /// <summary>
     /// Status wykonania zadania.
     /// </summary>
     public TaskStatus Status { get; set; } = TaskStatus.Pending;
@@ -99,6 +111,8 @@ public sealed class TaskState<TTask> : TaskState where TTask : notnull
             TaskId = state.TaskId,
             ExtensionId = state.ExtensionId,
             TaskType = state.TaskType,
+            Title = state.Title,
+            Description = state.Description,
             Status = state.Status,
             Progress = state.Progress,
             CurrentStep = state.CurrentStep,

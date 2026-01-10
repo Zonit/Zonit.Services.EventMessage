@@ -16,13 +16,15 @@ internal sealed class TaskStateStore
     /// <summary>
     /// Tworzy nowy stan zadania.
     /// </summary>
-    public TaskState CreateTask(Guid taskId, string taskType, Guid? extensionId, int? totalSteps, object? taskData = null)
+    public TaskState CreateTask(Guid taskId, string taskType, Guid? extensionId, int? totalSteps, string? title, string? description, object? taskData = null)
     {
         var state = new TaskState
         {
             TaskId = taskId,
             TaskType = taskType,
             ExtensionId = extensionId,
+            Title = title,
+            Description = description,
             Status = TaskStatus.Pending,
             TotalSteps = totalSteps,
             CurrentStep = totalSteps.HasValue ? 0 : null,

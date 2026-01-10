@@ -58,7 +58,23 @@ Install-Package Zonit.Messaging.Tasks
 
 ## Quick Start
 
-Add services to your application:
+### Recommended: Using Source Generators (AOT-Safe)
+
+Auto-register handlers at compile time for Native AOT support:
+
+```csharp
+using Zonit.Messaging.Commands;
+using Zonit.Messaging.Events;
+using Zonit.Messaging.Tasks;
+
+services.AddCommandHandlers();
+services.AddEventHandlers();
+services.AddTaskHandlers();
+```
+
+### Alternative: Manual Registration
+
+Manually register providers and handlers:
 
 ```csharp
 using Zonit.Messaging.Commands;
@@ -193,6 +209,10 @@ public class ImportDataHandler : TaskHandler<ImportDataTask>
 {
     public override int WorkerCount => 2;
     public override TimeSpan Timeout => TimeSpan.FromMinutes(10);
+    
+    // Optional: Display title and description in UI
+    public override string? Title => "Import Data";
+    public override string? Description => "Importing data from external source";
 
     // Define steps with estimated durations for smooth progress calculation
     public override TaskProgressStep[]? ProgressSteps =>
@@ -303,6 +323,8 @@ taskManager.OnChange<ImportDataTask>(organizationId, state =>
 | `TaskId` | `Guid` | Unique task identifier |
 | `ExtensionId` | `Guid?` | Optional identifier for filtering (e.g., user/organization ID) |
 | `TaskType` | `string` | Full type name of the task |
+| `Title` | `string?` | Optional display title for the task (null = uses TaskType) |
+| `Description` | `string?` | Optional description of what the task does |
 | `Status` | `TaskStatus` | Current status (Pending, Processing, Completed, Failed, Cancelled) |
 | `Progress` | `int?` | Progress 0-100 (null if not tracked) |
 | `CurrentStep` | `int?` | Current step number (1-based) |
@@ -349,18 +371,6 @@ Tasks go through various states during their lifecycle:
 - **Duration tracking**: Real-time duration available via `Duration` property
 - **Typed access**: Use `OnChange<T>` to get typed access to task data
 - **Efficient filtering**: Filter by `ExtensionId` at the system level for better performance
-
----
-
-## Source Generators (AOT-Safe)
-
-Auto-register handlers at compile time for Native AOT support:
-
-```csharp
-services.AddCommandHandlers();
-services.AddEventHandlers();
-services.AddTaskHandlers();
-```
 
 ---
 
