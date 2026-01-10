@@ -120,7 +120,7 @@ services.AddAllEventHandlers();
 services.AddAllTaskHandlers();
 ```
 
-> **Note**: Global registration discovers `CommandHandlerExtensions`, `EventHandlerExtensions`, and `TaskHandlerExtensions` classes from all referenced assemblies and calls their registration methods.
+> **Note**: Global registration methods (`AddAll*`) are only generated in assemblies that have handlers or reference other assemblies with handlers. They discover `CommandHandlerExtensions`, `EventHandlerExtensions`, and `TaskHandlerExtensions` classes from all referenced assemblies and call their registration methods.
 
 ### Comparison
 

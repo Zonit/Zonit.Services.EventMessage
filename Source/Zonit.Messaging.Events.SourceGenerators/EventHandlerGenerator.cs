@@ -99,9 +99,13 @@ public class EventHandlerGenerator : IIncrementalGenerator
             context.AddSource("EventHandlerRegistration.g.cs", registrationSource);
         }
 
-        // Always generate global registration method (calls all discovered registrations)
-        var globalSource = GenerateGlobalRegistration(targetNamespace, validHandlers.Count > 0, referencedRegistrations);
-        context.AddSource("EventHandlerGlobalRegistration.g.cs", globalSource);
+        // Generate global registration only if there's something to register
+        // (either local handlers or referenced registrations)
+        if (validHandlers.Count > 0 || referencedRegistrations.Count > 0)
+        {
+            var globalSource = GenerateGlobalRegistration(targetNamespace, validHandlers.Count > 0, referencedRegistrations);
+            context.AddSource("EventHandlerGlobalRegistration.g.cs", globalSource);
+        }
     }
 
     private static List<string> FindReferencedEventRegistrations(Compilation compilation)
