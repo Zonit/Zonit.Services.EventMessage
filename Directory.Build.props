@@ -19,11 +19,15 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageReleaseNotes>See https://github.com/Zonit/Zonit.Services.EventMessage/releases</PackageReleaseNotes>
     
-    <!-- Build settings for all packages -->
+    <!-- Build settings -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    
+    <!-- AOT and Trimming support (not for Source Generators) -->
+    <IsTrimmable Condition="'$(IsRoslynComponent)' != 'true'">true</IsTrimmable>
+    <IsAotCompatible Condition="'$(IsRoslynComponent)' != 'true'">true</IsAotCompatible>
   </PropertyGroup>
   
   <!-- Language settings - only for non-SourceGenerator projects -->
