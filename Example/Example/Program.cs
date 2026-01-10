@@ -34,6 +34,13 @@ internal class Program
                 services.AddCommand<CreateUserHandler>();
                 services.AddCommand<GetUserHandler>();
                 services.AddCommand<DeleteUserHandler>();
+
+                // Opcja 2: Source Generator (AOT-safe) - odkomentuj gdy masz handlery
+                // implementuj¹ce IEventHandler<T>, IRequestHandler<T,R> lub TaskHandler<T>
+                // w tym samym namespace co ten plik:
+                // services.AddEventHandlers();
+                // services.AddCommandHandlers();
+                // services.AddTaskHandlers();
                 
                 // Opcja 2: Source Generator (AOT-safe) - odkomentuj gdy SG wykryje handlery:
                 // services.AddCommandHandlers();

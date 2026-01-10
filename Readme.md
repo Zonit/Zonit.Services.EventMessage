@@ -58,23 +58,11 @@ Install-Package Zonit.Messaging.Tasks
 
 ## Quick Start
 
-### Recommended: Using Source Generators (AOT-Safe)
+The library supports **three registration options** for maximum flexibility:
 
-Auto-register handlers at compile time for Native AOT support:
+### Option 1: Manual Registration
 
-```csharp
-using Zonit.Messaging.Commands;
-using Zonit.Messaging.Events;
-using Zonit.Messaging.Tasks;
-
-services.AddCommandHandlers();
-services.AddEventHandlers();
-services.AddTaskHandlers();
-```
-
-### Alternative: Manual Registration
-
-Manually register providers and handlers:
+Register providers and handlers explicitly. Best for small projects or when you need fine-grained control:
 
 ```csharp
 using Zonit.Messaging.Commands;
@@ -87,10 +75,60 @@ services.AddCommand<CreateUserHandler>();
 
 // Events (Pub/Sub)
 services.AddEventProvider();
+services.AddEvent<UserCreatedEventHandler>();
 
 // Tasks (Background Jobs)
 services.AddTaskProvider();
+services.AddTask<SendEmailTaskHandler>();
 ```
+
+### Option 2: Per-Assembly Registration (Recommended for Plugins)
+
+Source Generators auto-detect handlers in each assembly and generate registration methods. Each plugin/library manages its own handlers:
+
+```csharp
+// In your plugin project (e.g., Kemavo.Plugins.Catalogs.Application)
+namespace Kemavo.Plugins.Catalogs.Application;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddCatalogsPlugin(this IServiceCollection services)
+    {
+        // These methods are auto-generated in this assembly's namespace
+        services.AddCommandHandlers();  // Registers all IRequestHandler<,> in this assembly
+        services.AddEventHandlers();    // Registers all IEventHandler<> in this assembly
+        services.AddTaskHandlers();     // Registers all TaskHandler<> in this assembly
+        
+        return services;
+    }
+}
+
+// In Program.cs - just call each plugin's registration
+services.AddCatalogsPlugin();
+services.AddWalletsPlugin();
+services.AddAIPlugin();
+```
+
+### Option 3: Global Registration (All Assemblies at Once)
+
+For the main application, use global methods that scan all referenced assemblies and register all handlers:
+
+```csharp
+// In Program.cs - registers handlers from ALL referenced assemblies
+services.AddAllCommandHandlers();
+services.AddAllEventHandlers();
+services.AddAllTaskHandlers();
+```
+
+> **Note**: Global registration discovers `CommandHandlerExtensions`, `EventHandlerExtensions`, and `TaskHandlerExtensions` classes from all referenced assemblies and calls their registration methods.
+
+### Comparison
+
+| Option | Use Case | AOT-Safe | Manual Work |
+|--------|----------|----------|-------------|
+| **Manual** | Small projects, explicit control | ? | High |
+| **Per-Assembly** | Plugin architecture, modular apps | ? | Low |
+| **Global** | Monolithic apps, quick setup | ? | None |
 
 ---
 
