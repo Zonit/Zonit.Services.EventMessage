@@ -11,15 +11,33 @@ namespace Zonit.Messaging.Tasks;
 public static class TaskServiceCollectionExtensions
 {
     /// <summary>
-    /// Dodaje serwisy zadañ do kontenera DI.
-    /// U¿yj AddTaskHandlers() z Source Generator dla pe³nego AOT support.
+    /// Registers task messaging services and all discovered task handlers.
+    /// Use this method in your plugin's DI registration - it works with or without handlers.
+    /// Source Generator automatically adds handler registrations when handlers exist.
     /// </summary>
-    public static IServiceCollection AddTaskProvider(this IServiceCollection services)
+    /// <remarks>
+    /// This method is safe to call multiple times - uses TryAdd to prevent duplicates.
+    /// </remarks>
+    public static IServiceCollection AddTaskHandlers(this IServiceCollection services)
     {
         services.TryAddSingleton<ITaskManager, TaskManager>();
         services.TryAddSingleton<ITaskProvider, TaskProvider>();
-        services.AddHostedService<TaskHandlerRegistrationHostedService>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, TaskHandlerRegistrationHostedService>());
+        
+        // Apply all registrations from Source Generators
+        TaskHandlerRegistry.ApplyRegistrations(services);
+        
         return services;
+    }
+
+    /// <summary>
+    /// Dodaje serwisy zadañ do kontenera DI.
+    /// U¿yj AddTaskHandlers() zamiast tej metody.
+    /// </summary>
+    [Obsolete("Use AddTaskHandlers() instead. This method will be removed in future versions.")]
+    public static IServiceCollection AddTaskProvider(this IServiceCollection services)
+    {
+        return services.AddTaskHandlers();
     }
 
     /// <summary>
@@ -31,6 +49,7 @@ public static class TaskServiceCollectionExtensions
         where THandler : class, ITaskHandler<TTask>
         where TTask : notnull
     {
+        services.AddTaskHandlers(); // Ensure base services are registered
         services.AddScoped<THandler>();
         services.AddScoped<ITaskHandler<TTask>>(sp => sp.GetRequiredService<THandler>());
         services.AddSingleton<TaskHandlerRegistration>(new TaskHandlerRegistration<TTask>());
@@ -49,6 +68,7 @@ public static class TaskServiceCollectionExtensions
         var options = new TaskSubscriptionOptions();
         configureOptions(options);
 
+        services.AddTaskHandlers(); // Ensure base services are registered
         services.AddScoped<THandler>();
         services.AddScoped<ITaskHandler<TTask>>(sp => sp.GetRequiredService<THandler>());
         services.AddSingleton<TaskHandlerRegistration>(new TaskHandlerRegistration<TTask>(options));

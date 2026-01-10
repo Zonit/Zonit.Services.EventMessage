@@ -58,77 +58,72 @@ Install-Package Zonit.Messaging.Tasks
 
 ## Quick Start
 
-The library supports **three registration options** for maximum flexibility:
+### Simple Registration (Recommended)
 
-### Option 1: Manual Registration
-
-Register providers and handlers explicitly. Best for small projects or when you need fine-grained control:
+Just call the registration methods - they work with or without handlers:
 
 ```csharp
 using Zonit.Messaging.Commands;
 using Zonit.Messaging.Events;
 using Zonit.Messaging.Tasks;
 
-// Commands (CQRS)
-services.AddCommandProvider();
-services.AddCommand<CreateUserHandler>();
-
-// Events (Pub/Sub)
-services.AddEventProvider();
-services.AddEvent<UserCreatedEventHandler>();
-
-// Tasks (Background Jobs)
-services.AddTaskProvider();
-services.AddTask<SendEmailTaskHandler>();
+// In your DI configuration (Program.cs or plugin registration)
+services.AddCommandHandlers();  // Registers Commands (CQRS)
+services.AddEventHandlers();    // Registers Events (Pub/Sub)  
+services.AddTaskHandlers();     // Registers Tasks (Background Jobs)
 ```
 
-### Option 2: Per-Assembly Registration (Recommended for Plugins)
+**That's it!** These methods:
+- ? **Always work** - even without any handlers
+- ? **Auto-discover handlers** - Source Generator automatically registers handlers at compile-time
+- ? **Safe to call multiple times** - uses `TryAdd` to prevent duplicates
+- ? **AOT/Trimming safe** - no runtime reflection
 
-Source Generators auto-detect handlers in each assembly and generate registration methods. Each plugin/library manages its own handlers:
+### Plugin Architecture
+
+For modular applications, call the methods in each plugin:
 
 ```csharp
-// In your plugin project (e.g., Kemavo.Plugins.Catalogs.Application)
-namespace Kemavo.Plugins.Catalogs.Application;
+// In Kemavo.Plugins.Catalogs.Application
+namespace Kemavo.Plugins;
 
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCatalogsPlugin(this IServiceCollection services)
     {
-        // These methods are auto-generated in this assembly's namespace
-        services.AddCommandHandlers();  // Registers all IRequestHandler<,> in this assembly
-        services.AddEventHandlers();    // Registers all IEventHandler<> in this assembly
-        services.AddTaskHandlers();     // Registers all TaskHandler<> in this assembly
+        // These methods exist in Zonit.Messaging.* libraries
+        // Source Generator automatically adds handlers from this assembly
+        services.AddCommandHandlers();
+        services.AddEventHandlers();
+        services.AddTaskHandlers();
         
         return services;
     }
 }
 
-// In Program.cs - just call each plugin's registration
+// In Program.cs
 services.AddCatalogsPlugin();
 services.AddWalletsPlugin();
 services.AddAIPlugin();
 ```
 
-### Option 3: Global Registration (All Assemblies at Once)
+### Manual Handler Registration
 
-For the main application, use global methods that scan all referenced assemblies and register all handlers:
+For fine-grained control, you can register handlers explicitly:
 
 ```csharp
-// In Program.cs - registers handlers from ALL referenced assemblies
-services.AddAllCommandHandlers();
-services.AddAllEventHandlers();
-services.AddAllTaskHandlers();
+// Commands
+services.AddCommandHandlers();
+services.AddCommand<CreateUserHandler>();  // Additional manual handler
+
+// Events
+services.AddEventHandlers();
+services.AddEventHandler<UserCreatedHandler, UserCreatedEvent>();
+
+// Tasks
+services.AddTaskHandlers();
+services.AddTaskHandler<SendEmailHandler, SendEmailTask>();
 ```
-
-> **Note**: Global registration methods (`AddAll*`) are only generated in assemblies that have handlers or reference other assemblies with handlers. They discover `CommandHandlerExtensions`, `EventHandlerExtensions`, and `TaskHandlerExtensions` classes from all referenced assemblies and call their registration methods.
-
-### Comparison
-
-| Option | Use Case | AOT-Safe | Manual Work |
-|--------|----------|----------|-------------|
-| **Manual** | Small projects, explicit control | ? | High |
-| **Per-Assembly** | Plugin architecture, modular apps | ? | Low |
-| **Global** | Monolithic apps, quick setup | ? | None |
 
 ---
 

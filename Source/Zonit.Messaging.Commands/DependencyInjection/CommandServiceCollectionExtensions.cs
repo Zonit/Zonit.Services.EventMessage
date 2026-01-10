@@ -10,13 +10,31 @@ namespace Zonit.Messaging.Commands;
 public static class CommandServiceCollectionExtensions
 {
     /// <summary>
-    /// Dodaje CommandProvider do kontenera DI.
-    /// Wywo³aj tê metodê raz podczas konfiguracji serwisów.
+    /// Registers command messaging services and all discovered command handlers.
+    /// Use this method in your plugin's DI registration - it works with or without handlers.
+    /// Source Generator automatically adds handler registrations when handlers exist.
     /// </summary>
-    public static IServiceCollection AddCommandProvider(this IServiceCollection services)
+    /// <remarks>
+    /// This method is safe to call multiple times - uses TryAdd to prevent duplicates.
+    /// </remarks>
+    public static IServiceCollection AddCommandHandlers(this IServiceCollection services)
     {
         services.TryAddScoped<ICommandProvider, CommandProvider>();
+        
+        // Apply all registrations from Source Generators
+        CommandHandlerRegistry.ApplyRegistrations(services);
+        
         return services;
+    }
+
+    /// <summary>
+    /// Dodaje CommandProvider do kontenera DI.
+    /// U¿yj AddCommandHandlers() zamiast tej metody.
+    /// </summary>
+    [Obsolete("Use AddCommandHandlers() instead. This method will be removed in future versions.")]
+    public static IServiceCollection AddCommandProvider(this IServiceCollection services)
+    {
+        return services.AddCommandHandlers();
     }
 
     /// <summary>
@@ -31,6 +49,8 @@ public static class CommandServiceCollectionExtensions
     public static IServiceCollection AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces | DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(this IServiceCollection services)
         where THandler : class
     {
+        services.AddCommandHandlers(); // Ensure base services are registered
+        
         var handlerType = typeof(THandler);
 
         var handlerInterface = handlerType.GetInterfaces()
