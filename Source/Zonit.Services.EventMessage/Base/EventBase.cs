@@ -33,7 +33,7 @@ public interface IEventHandler : IHandler { }
 /// </remarks>
 [Obsolete("Inherit from Zonit.Messaging.Events.IEventHandler<TEvent> instead and register with AddEventHandler<THandler, TEvent>().")]
 [EditorBrowsable(EditorBrowsableState.Never)]
-public abstract class EventBase<TModel> : HandlerBase<TModel>, IEventHandler
+public abstract class EventBase<TModel> : HandlerBase<TModel>, IEventHandler where TModel : notnull
 {
     /// <summary>
     /// Nazwa zdarzenia, do którego subskrybuje handler.

@@ -34,7 +34,7 @@ public interface ITaskHandler : IHandler { }
 /// <typeparam name="TModel">Typ danych zadania</typeparam>
 [Obsolete("Inherit from Zonit.Messaging.Tasks.ITaskHandler<TTask> instead and register with AddTaskHandler<THandler, TTask>().")]
 [EditorBrowsable(EditorBrowsableState.Never)]
-public abstract class TaskBase<TModel> : HandlerBase<TModel>, ITaskHandler
+public abstract class TaskBase<TModel> : HandlerBase<TModel>, ITaskHandler where TModel : notnull
 {
     /// <summary>
     /// Rejestruje handler w systemie zadañ.

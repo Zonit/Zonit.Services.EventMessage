@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Zonit.Services.EventMessage;
@@ -86,6 +87,8 @@ public static class ServiceCollectionExtensions
     /// </remarks>
     [Obsolete("This method uses reflection and is not AOT-safe. Use AddCommandHandlers(), AddEventHandlers(), AddTaskHandlers() from Source Generators instead.")]
     [EditorBrowsable(EditorBrowsableState.Never)]
+    [RequiresUnreferencedCode("This method uses reflection to scan assemblies and is not compatible with trimming.")]
+    [RequiresDynamicCode("This method uses reflection to create service registrations dynamically.")]
     public static IServiceCollection AddHandlers<THandler>(
         this IServiceCollection services,
         params Assembly[]? assemblies) where THandler : class, IHandler
