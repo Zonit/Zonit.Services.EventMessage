@@ -262,7 +262,9 @@ taskManager.Subscribe<ImportDataTask>(
     {
         WorkerCount = handler.WorkerCount,
         Timeout = handler.Timeout,
-        ProgressSteps = handler.ProgressSteps
+        ProgressSteps = handler.ProgressSteps,
+        Title = handler.Title,
+        Description = handler.Description
     });
 ```
 
