@@ -94,30 +94,30 @@ public static class EventsDemo
     private static void SubscribeHandlers(IEventManager eventManager)
     {
         // Handler 1: Logowanie rejestracji
-        eventManager.Subscribe<UserRegisteredEvent>(async payload =>
+        eventManager.Subscribe<UserRegisteredEvent>(async (data, cancellationToken) =>
         {
-            Console.WriteLine($"   [Handler 1] ?? Wysy³am email powitalny do: {payload.Data.Email}");
-            await Task.Delay(100); // Symulacja wysy³ki emaila
+            Console.WriteLine($"   [Handler 1] ?? Wysy³am email powitalny do: {data.Email}");
+            await Task.Delay(100, cancellationToken); // Symulacja wysy³ki emaila
         });
 
         // Handler 2: Statystyki
-        eventManager.Subscribe<UserRegisteredEvent>(async payload =>
+        eventManager.Subscribe<UserRegisteredEvent>(async (data, cancellationToken) =>
         {
-            Console.WriteLine($"   [Handler 2] ?? Aktualizujê statystyki dla: {payload.Data.Name}");
-            await Task.Delay(50);
+            Console.WriteLine($"   [Handler 2] ?? Aktualizujê statystyki dla: {data.Name}");
+            await Task.Delay(50, cancellationToken);
         });
 
         // Handler dla zamówieñ
-        eventManager.Subscribe<OrderPlacedEvent>(async payload =>
+        eventManager.Subscribe<OrderPlacedEvent>(async (data, cancellationToken) =>
         {
-            Console.WriteLine($"   [Handler] ?? Zamówienie {payload.Data.OrderId:N} na kwotê {payload.Data.Total:C}");
+            Console.WriteLine($"   [Handler] ?? Zamówienie {data.OrderId:N} na kwotê {data.Total:C}");
             await Task.CompletedTask;
         });
 
         // Handler dla wiadomoœci
-        eventManager.Subscribe<MessageSentEvent>(async payload =>
+        eventManager.Subscribe<MessageSentEvent>(async (data, cancellationToken) =>
         {
-            Console.WriteLine($"   [Handler] ?? Wiadomoœæ od {payload.Data.From} do {payload.Data.To}: \"{payload.Data.Content}\"");
+            Console.WriteLine($"   [Handler] ?? Wiadomoœæ od {data.From} do {data.To}: \"{data.Content}\"");
             await Task.CompletedTask;
         });
     }

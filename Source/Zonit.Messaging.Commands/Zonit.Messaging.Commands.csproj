@@ -1,13 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    
+    <!-- Package-specific metadata -->
+    <PackageId>Zonit.Messaging.Commands</PackageId>
+    <Title>Zonit.Messaging.Commands</Title>
+    <Description>CQRS command and query handling with strongly-typed request/response patterns. Part of Zonit.Messaging - a lightweight library for event-driven and CQRS architectures with full AOT/Trimming support.</Description>
+    <PackageTags>cqrs;commands;queries;mediator;messaging;async;aot;trimming;source-generator</PackageTags>
   </PropertyGroup>
+  
+  <!-- Source Generator as Analyzer -->
+  <ItemGroup>
+    <ProjectReference Include="..\Zonit.Messaging.Commands.SourceGenerators\Zonit.Messaging.Commands.SourceGenerators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  
+  <!-- For NuGet package: include the analyzer DLL -->
+  <ItemGroup>
+    <None Include="..\Zonit.Messaging.Commands.SourceGenerators\bin\$(Configuration)\netstandard2.0\Zonit.Messaging.Commands.SourceGenerators.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+  </ItemGroup>
+  
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
+  
   <ItemGroup>
     <ProjectReference Include="..\Zonit.Messaging.Commands.Abstractions\Zonit.Messaging.Commands.Abstractions.csproj" />
   </ItemGroup>

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Zonit.Messaging.Tasks.Hosting;
 
 namespace Zonit.Messaging.Tasks;
 
@@ -17,6 +18,7 @@ public static class TaskServiceCollectionExtensions
     {
         services.TryAddSingleton<ITaskManager, TaskManager>();
         services.TryAddSingleton<ITaskProvider, TaskProvider>();
+        services.AddHostedService<TaskHandlerRegistrationHostedService>();
         return services;
     }
 
@@ -31,6 +33,7 @@ public static class TaskServiceCollectionExtensions
     {
         services.AddScoped<THandler>();
         services.AddScoped<ITaskHandler<TTask>>(sp => sp.GetRequiredService<THandler>());
+        services.AddSingleton<TaskHandlerRegistration>(new TaskHandlerRegistration<TTask>());
         return services;
     }
 
@@ -48,28 +51,8 @@ public static class TaskServiceCollectionExtensions
 
         services.AddScoped<THandler>();
         services.AddScoped<ITaskHandler<TTask>>(sp => sp.GetRequiredService<THandler>());
-        
-        services.Configure<TaskHandlerOptions<TTask>>(opt =>
-        {
-            opt.WorkerCount = options.WorkerCount;
-            opt.Timeout = options.Timeout;
-            opt.ContinueOnError = options.ContinueOnError;
-            opt.MaxRetries = options.MaxRetries;
-            opt.RetryDelay = options.RetryDelay;
-        });
+        services.AddSingleton<TaskHandlerRegistration>(new TaskHandlerRegistration<TTask>(options));
 
         return services;
     }
-}
-
-/// <summary>
-/// Opcje dla konkretnego handlera zadañ.
-/// </summary>
-public class TaskHandlerOptions<TTask> where TTask : notnull
-{
-    public int WorkerCount { get; set; } = 10;
-    public TimeSpan Timeout { get; set; } = TimeSpan.FromMinutes(5);
-    public bool ContinueOnError { get; set; } = true;
-    public int MaxRetries { get; set; } = 0;
-    public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(5);
 }

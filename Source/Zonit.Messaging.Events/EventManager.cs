@@ -51,7 +51,7 @@ public sealed class EventManager : IEventManager, IDisposable
         }
     }
 
-    public void Subscribe<TEvent>(Func<EventPayload<TEvent>, Task> handler, EventSubscriptionOptions? options = null) 
+    public void Subscribe<TEvent>(Func<TEvent, CancellationToken, Task> handler, EventSubscriptionOptions? options = null) 
         where TEvent : notnull
     {
         var eventName = GetEventName<TEvent>();
@@ -70,7 +70,7 @@ public sealed class EventManager : IEventManager, IDisposable
             opts.WorkerCount);
     }
 
-    public void Subscribe(string eventName, Func<EventPayload<object>, Task> handler, EventSubscriptionOptions? options = null)
+    public void Subscribe(string eventName, Func<object, CancellationToken, Task> handler, EventSubscriptionOptions? options = null)
     {
         var opts = options ?? new EventSubscriptionOptions();
         var subscription = new EventSubscription<object>(handler, opts, _logger);
@@ -124,14 +124,14 @@ internal abstract class EventSubscription : IDisposable
 internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent : notnull
 {
     private readonly Channel<TEvent> _channel;
-    private readonly Func<EventPayload<TEvent>, Task> _handler;
+    private readonly Func<TEvent, CancellationToken, Task> _handler;
     private readonly EventSubscriptionOptions _options;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task[] _workers;
 
     public EventSubscription(
-        Func<EventPayload<TEvent>, Task> handler, 
+        Func<TEvent, CancellationToken, Task> handler, 
         EventSubscriptionOptions options, 
         ILogger logger)
     {
@@ -178,13 +178,7 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
                     timeoutCts.Token, 
                     cancellationToken);
 
-                var payload = new EventPayload<TEvent>
-                {
-                    Data = data,
-                    CancellationToken = linkedCts.Token
-                };
-
-                await _handler(payload);
+                await _handler(data, linkedCts.Token);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

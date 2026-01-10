@@ -131,22 +131,47 @@ var userId = await commandProvider.SendAsync(new CreateUserCommand("John", "john
 
 Publish events to multiple subscribers asynchronously.
 
-### 1. Subscribe to Events
+### 1. Define Event Handler (Recommended)
+
+Create a class implementing `IEventHandler<T>` for automatic registration:
+
+```csharp
+public record UserCreatedEvent(string Name, string Email);
+
+public class UserCreatedEventHandler : IEventHandler<UserCreatedEvent>
+{
+    private readonly ILogger<UserCreatedEventHandler> _logger;
+    
+    public UserCreatedEventHandler(ILogger<UserCreatedEventHandler> logger)
+    {
+        _logger = logger;
+    }
+    
+    public async Task HandleAsync(UserCreatedEvent data, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("User created: {Name}", data.Name);
+        await SendWelcomeEmailAsync(data.Email, cancellationToken);
+    }
+}
+```
+
+### 2. Subscribe Manually (Alternative)
 
 ```csharp
 var eventManager = serviceProvider.GetRequiredService<IEventManager>();
 
-eventManager.Subscribe<UserCreatedEvent>(async payload =>
+eventManager.Subscribe<UserCreatedEvent>(async (data, cancellationToken) =>
 {
-    Console.WriteLine($"User created: {payload.Data.Name}");
+    Console.WriteLine($"User created: {data.Name}");
+    await Task.CompletedTask;
 });
 ```
 
-### 2. Publish Events
+### 3. Publish Events
 
 ```csharp
 var eventProvider = serviceProvider.GetRequiredService<IEventProvider>();
-eventProvider.Publish(new UserCreatedEvent { Name = "John" });
+eventProvider.Publish(new UserCreatedEvent("John", "john@example.com"));
 ```
 
 ### 3. Using Transactions
@@ -252,20 +277,11 @@ public class ImportDataHandler : TaskHandler<ImportDataTask>
 }
 ```
 
-Register the handler:
+With Source Generators, registration is automatic:
 
 ```csharp
-var handler = new ImportDataHandler();
-taskManager.Subscribe<ImportDataTask>(
-    async payload => await ((ITaskHandler<ImportDataTask>)handler).HandleAsync(payload),
-    new TaskSubscriptionOptions
-    {
-        WorkerCount = handler.WorkerCount,
-        Timeout = handler.Timeout,
-        ProgressSteps = handler.ProgressSteps,
-        Title = handler.Title,
-        Description = handler.Description
-    });
+// In Program.cs - handlers are auto-discovered and registered
+services.AddTaskHandlers();
 ```
 
 ### 3. Publish Tasks
@@ -383,10 +399,35 @@ If upgrading from `Zonit.Services.EventMessage`:
 | Legacy (deprecated) | New |
 |---------------------|-----|
 | `using Zonit.Services.EventMessage;` | `using Zonit.Messaging.Events;` |
-| `services.AddEventMessageService()` | `services.AddEventProvider()` |
+| `services.AddEventMessageService()` | `services.AddEventHandlers()` |
 | `EventBase<T>` | `IEventHandler<T>` |
-| `TaskBase<T>` | `ITaskHandler<T>` |
-| `PayloadModel<T>` | `EventPayload<T>` / `TaskPayload<T>` |
+| `TaskBase<T>` | `TaskHandler<T>` |
+| `PayloadModel<T>` | Direct `TEvent data` parameter |
+| `payload.Data` / `payload.CancellationToken` | `(data, cancellationToken)` parameters |
+
+### Event Handler Migration Example
+
+**Before (Legacy):**
+```csharp
+public class UserHandler : EventBase<UserCreatedEvent>
+{
+    protected override async Task HandleAsync(UserCreatedEvent data, CancellationToken ct)
+    {
+        // Handle event
+    }
+}
+```
+
+**After (New API):**
+```csharp
+public class UserHandler : IEventHandler<UserCreatedEvent>
+{
+    public async Task HandleAsync(UserCreatedEvent data, CancellationToken cancellationToken)
+    {
+        // Handle event - same signature, cleaner interface!
+    }
+}
+```
 
 Legacy code continues to work but shows deprecation warnings.
 

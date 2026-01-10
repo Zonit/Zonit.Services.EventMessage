@@ -32,12 +32,12 @@ internal sealed class LegacyEventManagerService : IEventManager
         TimeSpan? timeout = null) where TEvent : notnull
     {
         // Konwertuj legacy handler na nowy format
-        _newManager.Subscribe<TEvent>(async payload =>
+        _newManager.Subscribe<TEvent>(async (data, cancellationToken) =>
         {
             var legacyPayload = new PayloadModel<TEvent>
             {
-                Data = payload.Data,
-                CancellationToken = payload.CancellationToken
+                Data = data,
+                CancellationToken = cancellationToken
             };
             await handler(legacyPayload);
         }, new Zonit.Messaging.Events.EventSubscriptionOptions
@@ -53,12 +53,12 @@ internal sealed class LegacyEventManagerService : IEventManager
         int workerCount = 10,
         TimeSpan? timeout = null)
     {
-        _newManager.Subscribe(eventName, async payload =>
+        _newManager.Subscribe(eventName, async (data, cancellationToken) =>
         {
             var legacyPayload = new PayloadModel<object>
             {
-                Data = payload.Data,
-                CancellationToken = payload.CancellationToken
+                Data = data,
+                CancellationToken = cancellationToken
             };
             await handler(legacyPayload);
         }, new Zonit.Messaging.Events.EventSubscriptionOptions

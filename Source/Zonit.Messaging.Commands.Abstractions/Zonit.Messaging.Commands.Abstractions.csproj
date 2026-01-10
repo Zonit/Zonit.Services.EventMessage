@@ -1,8 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    
+    <!-- Package-specific metadata -->
+    <PackageId>Zonit.Messaging.Commands.Abstractions</PackageId>
+    <Title>Zonit.Messaging.Commands.Abstractions</Title>
+    <Description>Abstractions and interfaces for Zonit.Messaging.Commands CQRS library. Use this package when you only need the interfaces without the implementation.</Description>
+    <PackageTags>cqrs;commands;queries;abstractions;interfaces;messaging</PackageTags>
   </PropertyGroup>
 </Project>

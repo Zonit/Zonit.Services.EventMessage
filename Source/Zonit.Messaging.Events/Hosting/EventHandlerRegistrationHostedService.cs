@@ -72,14 +72,14 @@ public sealed class EventHandlerRegistration<TEvent> : EventHandlerRegistration 
 
     public override void Subscribe(IEventManager eventManager, IServiceProvider serviceProvider)
     {
-        eventManager.Subscribe<TEvent>(async payload =>
+        eventManager.Subscribe<TEvent>(async (data, cancellationToken) =>
         {
             using var scope = serviceProvider.CreateScope();
             var handlers = scope.ServiceProvider.GetServices<IEventHandler<TEvent>>();
 
             foreach (var handler in handlers)
             {
-                await handler.HandleAsync(payload);
+                await handler.HandleAsync(data, cancellationToken);
             }
         }, _options);
     }

@@ -66,13 +66,13 @@ public abstract class EventBase<TModel> : HandlerBase<TModel>, IEventHandler
             EventName, WorkerCount);
 
         // Subskrybuj przez nowe API
-        eventManager.Subscribe<TModel>(async payload =>
+        eventManager.Subscribe<TModel>(async (data, cancellationToken) =>
         {
             var handler = CreateHandler(scopeFactory, logger);
             var legacyPayload = new PayloadModel<TModel>
             {
-                Data = payload.Data,
-                CancellationToken = payload.CancellationToken
+                Data = data,
+                CancellationToken = cancellationToken
             };
             await handler(legacyPayload);
         }, new Zonit.Messaging.Events.EventSubscriptionOptions

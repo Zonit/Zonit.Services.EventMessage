@@ -1,15 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
-<PropertyGroup>
-  <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-  <LangVersion>latest</LangVersion>
-  <Nullable>enable</Nullable>
-  <ImplicitUsings>enable</ImplicitUsings>
-</PropertyGroup>
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    
+    <!-- Package-specific metadata -->
+    <PackageId>Zonit.Messaging.Tasks</PackageId>
+    <Title>Zonit.Messaging.Tasks</Title>
+    <Description>High-performance background task processing with progress tracking, retry support, and real-time monitoring. Part of Zonit.Messaging - a lightweight library for event-driven and CQRS architectures with full AOT/Trimming support.</Description>
+    <PackageTags>tasks;background-jobs;queue;async;messaging;cqrs;progress-tracking;aot;trimming;source-generator</PackageTags>
+  </PropertyGroup>
+  
+  <!-- Source Generator as Analyzer -->
+  <ItemGroup>
+    <ProjectReference Include="..\Zonit.Messaging.Tasks.SourceGenerators\Zonit.Messaging.Tasks.SourceGenerators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  
+  <!-- For NuGet package: include the analyzer DLL -->
+  <ItemGroup>
+    <None Include="..\Zonit.Messaging.Tasks.SourceGenerators\bin\$(Configuration)\netstandard2.0\Zonit.Messaging.Tasks.SourceGenerators.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+  </ItemGroup>
+  
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
+  
   <ItemGroup>
     <ProjectReference Include="..\Zonit.Messaging.Tasks.Abstractions\Zonit.Messaging.Tasks.Abstractions.csproj" />
   </ItemGroup>

@@ -1,15 +1,35 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    
+    <!-- Package-specific metadata -->
+    <PackageId>Zonit.Messaging.Events</PackageId>
+    <Title>Zonit.Messaging.Events</Title>
+    <Description>High-performance pub/sub event system with fan-out support and transaction handling. Part of Zonit.Messaging - a lightweight library for event-driven and CQRS architectures with full AOT/Trimming support.</Description>
+    <PackageTags>events;pub-sub;messaging;async;event-driven;cqrs;aot;trimming;source-generator</PackageTags>
   </PropertyGroup>
+  
+  <!-- Source Generator as Analyzer -->
+  <ItemGroup>
+    <ProjectReference Include="..\Zonit.Messaging.Events.SourceGenerators\Zonit.Messaging.Events.SourceGenerators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  
+  <!-- For NuGet package: include the analyzer DLL -->
+  <ItemGroup>
+    <None Include="..\Zonit.Messaging.Events.SourceGenerators\bin\$(Configuration)\netstandard2.0\Zonit.Messaging.Events.SourceGenerators.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+  </ItemGroup>
+  
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
+  
   <ItemGroup>
     <ProjectReference Include="..\Zonit.Messaging.Events.Abstractions\Zonit.Messaging.Events.Abstractions.csproj" />
   </ItemGroup>

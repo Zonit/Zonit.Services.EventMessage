@@ -10,7 +10,8 @@ public interface IEventHandler<TEvent> where TEvent : notnull
     /// <summary>
     /// Obs³uguje event.
     /// </summary>
-    /// <param name="payload">Dane eventu z metadanymi</param>
+    /// <param name="data">Dane eventu</param>
+    /// <param name="cancellationToken">Token anulowania dla operacji</param>
     /// <returns>Task reprezentuj¹cy operacjê asynchroniczn¹</returns>
-    Task HandleAsync(EventPayload<TEvent> payload);
+    Task HandleAsync(TEvent data, CancellationToken cancellationToken);
 }

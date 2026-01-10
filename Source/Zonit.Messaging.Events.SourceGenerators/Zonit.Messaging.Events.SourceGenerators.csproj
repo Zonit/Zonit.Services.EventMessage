@@ -1,14 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
-<PropertyGroup>
-  <TargetFramework>netstandard2.0</TargetFramework>
-  <LangVersion>latest</LangVersion>
-  <Nullable>enable</Nullable>
-  <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-  <IsRoslynComponent>true</IsRoslynComponent>
-  <!-- Source Generators don't support AOT -->
-  <IsTrimmable>false</IsTrimmable>
-  <IsAotCompatible>false</IsAotCompatible>
-</PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    
+    <!-- Source Generators don't support AOT -->
+    <IsTrimmable>false</IsTrimmable>
+    <IsAotCompatible>false</IsAotCompatible>
+    
+    <!-- Don't publish this package separately - it's included in Zonit.Messaging.Events -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />

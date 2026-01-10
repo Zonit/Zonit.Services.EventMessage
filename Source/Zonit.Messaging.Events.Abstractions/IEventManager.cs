@@ -25,7 +25,7 @@ public interface IEventManager
     /// <typeparam name="TEvent">Typ eventu</typeparam>
     /// <param name="handler">Funkcja obs³uguj¹ca event</param>
     /// <param name="options">Opcje subskrypcji</param>
-    void Subscribe<TEvent>(Func<EventPayload<TEvent>, Task> handler, EventSubscriptionOptions? options = null) 
+    void Subscribe<TEvent>(Func<TEvent, CancellationToken, Task> handler, EventSubscriptionOptions? options = null) 
         where TEvent : notnull;
 
     /// <summary>
@@ -34,7 +34,7 @@ public interface IEventManager
     /// <param name="eventName">Nazwa eventu</param>
     /// <param name="handler">Funkcja obs³uguj¹ca event</param>
     /// <param name="options">Opcje subskrypcji</param>
-    void Subscribe(string eventName, Func<EventPayload<object>, Task> handler, EventSubscriptionOptions? options = null);
+    void Subscribe(string eventName, Func<object, CancellationToken, Task> handler, EventSubscriptionOptions? options = null);
 
     /// <summary>
     /// Tworzy now¹ transakcjê eventów.
