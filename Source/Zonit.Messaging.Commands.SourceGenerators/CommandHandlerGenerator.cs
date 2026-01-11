@@ -6,10 +6,10 @@ using System.Text;
 namespace Zonit.Messaging.Commands.SourceGenerators;
 
 /// <summary>
-/// Source Generator który automatycznie generuje rejestracjê handlerów dla AOT/Trimming.
-/// Skanuje projekt w poszukiwaniu klas implementuj¹cych IRequestHandler i generuje:
-/// 1. Extension method AddCommandHandlers() dla automatycznej rejestracji wszystkich handlerów
-/// 2. AOT-safe dispatch bez reflection
+/// Source Generator that automatically generates AOT-safe command handler registration.
+/// Scans the project for classes implementing IRequestHandler and generates:
+/// 1. An ICommandProviderSegment implementation for AOT-safe dispatch
+/// 2. Registration code that adds the segment to DI
 /// </summary>
 [Generator]
 public class CommandHandlerGenerator : IIncrementalGenerator
@@ -19,16 +19,13 @@ public class CommandHandlerGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // ZnajdŸ wszystkie klasy implementuj¹ce IRequestHandler<,>
         var handlerClasses = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (node, _) => IsCandidateHandlerClass(node),
                 transform: static (ctx, _) => GetHandlerInfo(ctx))
             .Where(static info => info is not null);
 
-        // Zbierz wszystkie handlery i wygeneruj kod
         var compilation = context.CompilationProvider.Combine(handlerClasses.Collect());
-
         context.RegisterSourceOutput(compilation, static (spc, source) => Execute(source.Left, source.Right!, spc));
     }
 
@@ -47,11 +44,9 @@ public class CommandHandlerGenerator : IIncrementalGenerator
         if (symbol is not INamedTypeSymbol classSymbol)
             return null;
 
-        // SprawdŸ czy klasa jest abstract lub static
         if (classSymbol.IsAbstract || classSymbol.IsStatic)
             return null;
 
-        // ZnajdŸ interfejs IRequestHandler<TRequest, TResponse>
         var handlerInterface = classSymbol.AllInterfaces
             .FirstOrDefault(i => i.IsGenericType 
                 && i.Name == RequestHandlerInterfaceName 
@@ -83,24 +78,18 @@ public class CommandHandlerGenerator : IIncrementalGenerator
             .Distinct()
             .ToList();
 
-        // Only generate if there are handlers
         if (validHandlers.Count == 0)
             return;
 
-        // Get assembly name for unique class naming
         var assemblyName = compilation.AssemblyName ?? "Unknown";
         var safeAssemblyName = assemblyName.Replace(".", "_").Replace("-", "_");
 
-        // Generate handler registrations with ModuleInitializer
-        var registrationSource = GenerateHandlerRegistrations(validHandlers, safeAssemblyName);
-        context.AddSource("CommandHandlerRegistration.g.cs", registrationSource);
-
-        // Generate AOT-safe CommandProvider
-        var providerSource = GenerateAotCommandProvider(validHandlers, safeAssemblyName);
-        context.AddSource("GeneratedCommandProvider.g.cs", providerSource);
+        // Generate the segment and registration
+        var source = GenerateSegmentAndRegistration(validHandlers, safeAssemblyName);
+        context.AddSource("CommandHandlerSegment.g.cs", source);
     }
 
-    private static string GenerateHandlerRegistrations(List<HandlerInfo> handlers, string safeAssemblyName)
+    private static string GenerateSegmentAndRegistration(List<HandlerInfo> handlers, string safeAssemblyName)
     {
         var sb = new StringBuilder();
 
@@ -113,90 +102,73 @@ public class CommandHandlerGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine("namespace Zonit.Messaging.Commands.Generated;");
         sb.AppendLine();
+        
+        // Generate the segment class
         sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// Auto-generated command handler registrations for assembly.");
-        sb.AppendLine("/// These registrations are automatically applied when AddCommandHandlers() is called.");
+        sb.AppendLine($"/// AOT-safe command provider segment for this assembly.");
+        sb.AppendLine("/// Handles command dispatch without reflection.");
         sb.AppendLine("/// </summary>");
-        sb.AppendLine($"[CommandHandlerRegistrationSource]");
-        sb.AppendLine($"internal static class CommandHandlerRegistrations_{safeAssemblyName}");
+        sb.AppendLine($"internal sealed class CommandProviderSegment_{safeAssemblyName} : ICommandProviderSegment");
         sb.AppendLine("{");
-        sb.AppendLine("    [System.Runtime.CompilerServices.ModuleInitializer]");
-        sb.AppendLine("    internal static void Initialize()");
+        sb.AppendLine("    public Task<(bool Handled, TResponse? Result)> TryHandleAsync<TResponse>(");
+        sb.AppendLine("        IRequest<TResponse> request,");
+        sb.AppendLine("        IServiceProvider serviceProvider,");
+        sb.AppendLine("        CancellationToken cancellationToken)");
+        sb.AppendLine("        where TResponse : notnull");
         sb.AppendLine("    {");
-        sb.AppendLine("        CommandHandlerRegistry.Register(RegisterHandlers);");
-        sb.AppendLine("    }");
-        sb.AppendLine();
-        sb.AppendLine("    internal static void RegisterHandlers(IServiceCollection services)");
-        sb.AppendLine("    {");
-        sb.AppendLine($"        // Register AOT-safe command provider");
-        sb.AppendLine($"        services.TryAddScoped<ICommandProvider, GeneratedCommandProvider_{safeAssemblyName}>();");
-        sb.AppendLine();
-
-        foreach (var handler in handlers)
-        {
-            sb.AppendLine($"        // Handler: {handler.HandlerName}");
-            sb.AppendLine($"        services.TryAddScoped<IRequestHandler<{handler.RequestFullName}, {handler.ResponseFullName}>, {handler.HandlerFullName}>();");
-        }
-
-        sb.AppendLine("    }");
-        sb.AppendLine("}");
-
-        return sb.ToString();
-    }
-
-    private static string GenerateAotCommandProvider(List<HandlerInfo> handlers, string safeAssemblyName)
-    {
-        var sb = new StringBuilder();
-
-        sb.AppendLine("// <auto-generated/>");
-        sb.AppendLine("#nullable enable");
-        sb.AppendLine();
-        sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
-        sb.AppendLine("using Zonit.Messaging.Commands;");
-        sb.AppendLine();
-        sb.AppendLine("namespace Zonit.Messaging.Commands.Generated;");
-        sb.AppendLine();
-        sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// AOT-safe CommandProvider generated at compile time.");
-        sb.AppendLine("/// Uses direct type resolution instead of MakeGenericType reflection.");
-        sb.AppendLine("/// </summary>");
-        sb.AppendLine($"internal sealed class GeneratedCommandProvider_{safeAssemblyName} : ICommandProvider");
-        sb.AppendLine("{");
-        sb.AppendLine("    private readonly IServiceProvider _serviceProvider;");
-        sb.AppendLine();
-        sb.AppendLine($"    public GeneratedCommandProvider_{safeAssemblyName}(IServiceProvider serviceProvider)");
-        sb.AppendLine("    {");
-        sb.AppendLine("        _serviceProvider = serviceProvider;");
-        sb.AppendLine("    }");
-        sb.AppendLine();
-        sb.AppendLine("    public Task<TResponse?> SendAsync<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) where TResponse : notnull");
-        sb.AppendLine("    {");
-        sb.AppendLine("        ArgumentNullException.ThrowIfNull(request);");
-        sb.AppendLine();
         sb.AppendLine("        return request switch");
         sb.AppendLine("        {");
 
         foreach (var handler in handlers)
         {
-            sb.AppendLine($"            {handler.RequestFullName} r => HandleAsync<{handler.RequestFullName}, {handler.ResponseFullName}, TResponse>(r, cancellationToken),");
+            sb.AppendLine($"            {handler.RequestFullName} r => HandleAsync<{handler.RequestFullName}, {handler.ResponseFullName}, TResponse>(r, serviceProvider, cancellationToken),");
         }
 
-        sb.AppendLine("            _ => throw new InvalidOperationException(");
-        sb.AppendLine("                $\"No handler registered for request type '{request.GetType().FullName}'. \" +");
-        sb.AppendLine("                $\"Expected response type: '{typeof(TResponse).FullName}'. \" +");
-        sb.AppendLine("                \"Ensure handler is registered using AddCommandHandlers() or AddCommand<THandler>().\")");
+        sb.AppendLine("            _ => Task.FromResult<(bool, TResponse?)>((false, default))");
         sb.AppendLine("        };");
         sb.AppendLine("    }");
         sb.AppendLine();
-        sb.AppendLine("    private Task<TResponse?> HandleAsync<TRequest, THandlerResponse, TResponse>(TRequest request, CancellationToken cancellationToken)");
+        sb.AppendLine("    private static async Task<(bool Handled, TResponse? Result)> HandleAsync<TRequest, THandlerResponse, TResponse>(");
+        sb.AppendLine("        TRequest request,");
+        sb.AppendLine("        IServiceProvider serviceProvider,");
+        sb.AppendLine("        CancellationToken cancellationToken)");
         sb.AppendLine("        where TRequest : IRequest<THandlerResponse>");
         sb.AppendLine("        where THandlerResponse : notnull");
         sb.AppendLine("        where TResponse : notnull");
         sb.AppendLine("    {");
-        sb.AppendLine("        var handler = _serviceProvider.GetRequiredService<IRequestHandler<TRequest, THandlerResponse>>();");
-        sb.AppendLine("        ");
-        sb.AppendLine("        // Safe cast - typy s¹ weryfikowane compile-time przez switch expression");
-        sb.AppendLine("        return (Task<TResponse?>)(object)handler.HandleAsync(request, cancellationToken);");
+        sb.AppendLine("        var handler = serviceProvider.GetRequiredService<IRequestHandler<TRequest, THandlerResponse>>();");
+        sb.AppendLine("        var result = await handler.HandleAsync(request, cancellationToken);");
+        sb.AppendLine("        return (true, (TResponse?)(object?)result);");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        // Generate the registration class with ModuleInitializer
+        sb.AppendLine("/// <summary>");
+        sb.AppendLine("/// Auto-generated registration for command handlers.");
+        sb.AppendLine("/// </summary>");
+        sb.AppendLine($"internal static class CommandHandlerRegistrations_{safeAssemblyName}");
+        sb.AppendLine("{");
+        sb.AppendLine("    [System.Runtime.CompilerServices.ModuleInitializer]");
+        sb.AppendLine("    internal static void Initialize()");
+        sb.AppendLine("    {");
+        sb.AppendLine("        // Register handlers when assembly loads");
+        sb.AppendLine("        CommandSegmentRegistry.Register(RegisterServices);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    internal static void RegisterServices(IServiceCollection services)");
+        sb.AppendLine("    {");
+        sb.AppendLine($"        // Register the segment using TryAddEnumerable to prevent duplicates");
+        sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandProviderSegment, CommandProviderSegment_{safeAssemblyName}>());");
+        sb.AppendLine();
+
+        foreach (var handler in handlers)
+        {
+            sb.AppendLine($"        // Handler: {handler.HandlerName}");
+            sb.AppendLine($"        services.TryAddScoped<{handler.HandlerFullName}>();");
+            sb.AppendLine($"        services.TryAddScoped<IRequestHandler<{handler.RequestFullName}, {handler.ResponseFullName}>>(sp => sp.GetRequiredService<{handler.HandlerFullName}>());");
+        }
+
         sb.AppendLine("    }");
         sb.AppendLine("}");
 

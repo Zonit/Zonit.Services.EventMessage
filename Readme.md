@@ -109,20 +109,17 @@ services.AddAIPlugin();
 
 ### Manual Handler Registration
 
-For fine-grained control, you can register handlers explicitly:
+For fine-grained control, you can register handlers explicitly (100% AOT-safe):
 
 ```csharp
-// Commands
-services.AddCommandHandlers();
-services.AddCommand<CreateUserHandler>();  // Additional manual handler
+// Commands - specify handler, request, and response types
+services.AddCommand<CreateUserHandler, CreateUserCommand, Guid>();
 
-// Events
-services.AddEventHandlers();
-services.AddEventHandler<UserCreatedHandler, UserCreatedEvent>();
+// Events - specify handler and event types
+services.AddEvent<UserCreatedHandler, UserCreatedEvent>();
 
-// Tasks
-services.AddTaskHandlers();
-services.AddTaskHandler<SendEmailHandler, SendEmailTask>();
+// Tasks - specify handler and task types
+services.AddTask<SendEmailHandler, SendEmailTask>();
 ```
 
 ---

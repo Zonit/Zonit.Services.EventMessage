@@ -6,60 +6,52 @@ using Zonit.Messaging.Events.Hosting;
 namespace Zonit.Messaging.Events;
 
 /// <summary>
-/// Extension methods dla rejestracji serwisów eventów w DI.
+/// Extension methods for registering event handlers in DI.
 /// </summary>
 public static class EventServiceCollectionExtensions
 {
     /// <summary>
     /// Registers event messaging services and all discovered event handlers.
-    /// Use this method in your plugin's DI registration - it works with or without handlers.
-    /// Source Generator automatically adds handler registrations when handlers exist.
+    /// Source Generator automatically registers handlers when they exist.
     /// </summary>
     /// <remarks>
     /// This method is safe to call multiple times - uses TryAdd to prevent duplicates.
+    /// Call this in your plugin's DI registration.
     /// </remarks>
     public static IServiceCollection AddEventHandlers(this IServiceCollection services)
     {
+        // Apply registrations from Source Generators (via ModuleInitializer)
+        EventSegmentRegistry.ApplyRegistrations(services);
+        
+        // Register core services
         services.TryAddSingleton<IEventManager, EventManager>();
         services.TryAddSingleton<IEventProvider, EventProvider>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EventHandlerRegistrationHostedService>());
         
-        // Apply all registrations from Source Generators
-        EventHandlerRegistry.ApplyRegistrations(services);
-        
         return services;
     }
 
     /// <summary>
-    /// Dodaje serwisy eventów do kontenera DI.
-    /// U¿yj AddEventHandlers() zamiast tej metody.
+    /// Manually registers an event handler. AOT-safe version.
+    /// Use this when you want explicit control over handler registration.
     /// </summary>
-    [Obsolete("Use AddEventHandlers() instead. This method will be removed in future versions.")]
-    public static IServiceCollection AddEventProvider(this IServiceCollection services)
-    {
-        return services.AddEventHandlers();
-    }
-
-    /// <summary>
-    /// Rejestruje handler eventów rêcznie (bez Source Generator).
-    /// </summary>
-    /// <typeparam name="THandler">Typ handlera</typeparam>
-    /// <typeparam name="TEvent">Typ eventu</typeparam>
-    public static IServiceCollection AddEventHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>(this IServiceCollection services)
+    /// <typeparam name="THandler">Handler type</typeparam>
+    /// <typeparam name="TEvent">Event type</typeparam>
+    public static IServiceCollection AddEvent<THandler, TEvent>(this IServiceCollection services)
         where THandler : class, IEventHandler<TEvent>
         where TEvent : notnull
     {
-        services.AddEventHandlers(); // Ensure base services are registered
-        services.AddScoped<THandler>();
-        services.AddScoped<IEventHandler<TEvent>>(sp => sp.GetRequiredService<THandler>());
-        services.AddSingleton<EventHandlerRegistration>(new EventHandlerRegistration<TEvent>());
+        services.AddEventHandlers();
+        services.TryAddScoped<THandler>();
+        services.TryAddScoped<IEventHandler<TEvent>>(sp => sp.GetRequiredService<THandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<EventHandlerRegistration>(new EventHandlerRegistration<TEvent>()));
         return services;
     }
 
     /// <summary>
-    /// Rejestruje handler eventów z okreœlonymi opcjami.
+    /// Manually registers an event handler with options. AOT-safe version.
     /// </summary>
-    public static IServiceCollection AddEventHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>(
+    public static IServiceCollection AddEvent<THandler, TEvent>(
         this IServiceCollection services,
         Action<EventSubscriptionOptions> configureOptions)
         where THandler : class, IEventHandler<TEvent>
@@ -68,13 +60,29 @@ public static class EventServiceCollectionExtensions
         var options = new EventSubscriptionOptions();
         configureOptions(options);
 
-        services.AddEventHandlers(); // Ensure base services are registered
-        services.AddScoped<THandler>();
-        services.AddScoped<IEventHandler<TEvent>>(sp => sp.GetRequiredService<THandler>());
-        services.AddSingleton<EventHandlerRegistration>(new EventHandlerRegistration<TEvent>(options));
+        services.AddEventHandlers();
+        services.TryAddScoped<THandler>();
+        services.TryAddScoped<IEventHandler<TEvent>>(sp => sp.GetRequiredService<THandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<EventHandlerRegistration>(new EventHandlerRegistration<TEvent>(options)));
 
         return services;
     }
+
+    /// <summary>
+    /// Registers event handler. Use AddEvent instead.
+    /// </summary>
+    [Obsolete("Use AddEvent<THandler, TEvent>() instead.")]
+    public static IServiceCollection AddEventHandler<THandler, TEvent>(this IServiceCollection services)
+        where THandler : class, IEventHandler<TEvent>
+        where TEvent : notnull
+        => services.AddEvent<THandler, TEvent>();
+
+    /// <summary>
+    /// Registers EventProvider. Use AddEventHandlers() instead.
+    /// </summary>
+    [Obsolete("Use AddEventHandlers() instead.")]
+    public static IServiceCollection AddEventProvider(this IServiceCollection services)
+        => services.AddEventHandlers();
 }
 
 /// <summary>

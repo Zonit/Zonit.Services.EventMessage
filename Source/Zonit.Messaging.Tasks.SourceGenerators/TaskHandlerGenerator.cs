@@ -101,20 +101,17 @@ public class TaskHandlerGenerator : IIncrementalGenerator
             .Distinct()
             .ToList();
 
-        // Only generate if there are handlers
         if (validHandlers.Count == 0)
             return;
 
-        // Get assembly name for unique class naming
         var assemblyName = compilation.AssemblyName ?? "Unknown";
         var safeAssemblyName = assemblyName.Replace(".", "_").Replace("-", "_");
 
-        // Generate handler registrations with ModuleInitializer
-        var registrationSource = GenerateHandlerRegistrations(validHandlers, safeAssemblyName);
-        context.AddSource("TaskHandlerRegistration.g.cs", registrationSource);
+        var source = GenerateRegistration(validHandlers, safeAssemblyName);
+        context.AddSource("TaskHandlerRegistration.g.cs", source);
     }
 
-    private static string GenerateHandlerRegistrations(List<TaskHandlerInfo> handlers, string safeAssemblyName)
+    private static string GenerateRegistration(List<TaskHandlerInfo> handlers, string safeAssemblyName)
     {
         var sb = new StringBuilder();
 
@@ -126,7 +123,6 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         sb.AppendLine("using Zonit.Messaging.Tasks;");
         sb.AppendLine("using Zonit.Messaging.Tasks.Hosting;");
         
-        // Only add legacy using if there are legacy handlers
         if (handlers.Any(h => h.IsLegacy))
         {
             sb.AppendLine("using Zonit.Services.EventMessage;");
@@ -135,19 +131,17 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         sb.AppendLine("namespace Zonit.Messaging.Tasks.Generated;");
         sb.AppendLine();
         sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// Auto-generated task handler registrations for assembly.");
-        sb.AppendLine("/// These registrations are automatically applied when AddTaskHandlers() is called.");
+        sb.AppendLine("/// Auto-generated task handler registrations.");
         sb.AppendLine("/// </summary>");
-        sb.AppendLine($"[TaskHandlerRegistrationSource]");
         sb.AppendLine($"internal static class TaskHandlerRegistrations_{safeAssemblyName}");
         sb.AppendLine("{");
         sb.AppendLine("    [System.Runtime.CompilerServices.ModuleInitializer]");
         sb.AppendLine("    internal static void Initialize()");
         sb.AppendLine("    {");
-        sb.AppendLine("        TaskHandlerRegistry.Register(RegisterHandlers);");
+        sb.AppendLine("        TaskSegmentRegistry.Register(RegisterServices);");
         sb.AppendLine("    }");
         sb.AppendLine();
-        sb.AppendLine("    internal static void RegisterHandlers(IServiceCollection services)");
+        sb.AppendLine("    internal static void RegisterServices(IServiceCollection services)");
         sb.AppendLine("    {");
 
         foreach (var handler in handlers)
@@ -155,8 +149,7 @@ public class TaskHandlerGenerator : IIncrementalGenerator
             sb.AppendLine($"        // Handler: {handler.HandlerName} for task: {handler.TaskName}{(handler.IsLegacy ? " [LEGACY]" : "")}");
             sb.AppendLine($"        services.TryAddScoped<{handler.HandlerFullName}>();");
             sb.AppendLine($"        services.TryAddScoped<ITaskHandler<{handler.TaskFullName}>>(sp => sp.GetRequiredService<{handler.HandlerFullName}>());");
-            sb.AppendLine($"        services.AddSingleton<TaskHandlerRegistration>(new TaskHandlerRegistration<{handler.TaskFullName}>());");
-            sb.AppendLine();
+            sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Singleton<TaskHandlerRegistration>(new TaskHandlerRegistration<{handler.TaskFullName}>()));");
         }
 
         sb.AppendLine("    }");

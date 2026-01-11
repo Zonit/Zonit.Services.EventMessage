@@ -11,17 +11,12 @@
   
   <!-- Source Generator as Analyzer -->
   <ItemGroup>
-    <ProjectReference Include="..\Zonit.Messaging.Commands.SourceGenerators\Zonit.Messaging.Commands.SourceGenerators.csproj" 
-                      OutputItemType="Analyzer" 
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Zonit.Messaging.Commands.SourceGenerators\Zonit.Messaging.Commands.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   
   <!-- For NuGet package: include the analyzer DLL -->
   <ItemGroup>
-    <None Include="..\Zonit.Messaging.Commands.SourceGenerators\bin\$(Configuration)\netstandard2.0\Zonit.Messaging.Commands.SourceGenerators.dll"
-          Pack="true"
-          PackagePath="analyzers/dotnet/cs"
-          Visible="false" />
+    <None Include="..\Zonit.Messaging.Commands.SourceGenerators\bin\$(Configuration)\netstandard2.0\Zonit.Messaging.Commands.SourceGenerators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
   
   <ItemGroup>
@@ -30,5 +25,9 @@
   
   <ItemGroup>
     <ProjectReference Include="..\Zonit.Messaging.Commands.Abstractions\Zonit.Messaging.Commands.Abstractions.csproj" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Folder Include="Internal\" />
   </ItemGroup>
 </Project>

@@ -5,117 +5,77 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Zonit.Messaging.Commands;
 
 /// <summary>
-/// Extension methods dla rejestracji command handlerów w DI.
+/// Extension methods for registering command handlers in DI.
 /// </summary>
 public static class CommandServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers command messaging services and all discovered command handlers.
-    /// Use this method in your plugin's DI registration - it works with or without handlers.
-    /// Source Generator automatically adds handler registrations when handlers exist.
+    /// Registers command messaging services.
+    /// Source Generator automatically registers handler segments when handlers exist.
     /// </summary>
     /// <remarks>
     /// This method is safe to call multiple times - uses TryAdd to prevent duplicates.
+    /// Call this in your plugin's DI registration.
     /// </remarks>
     public static IServiceCollection AddCommandHandlers(this IServiceCollection services)
     {
-        services.TryAddScoped<ICommandProvider, CommandProvider>();
+        // Apply registrations from Source Generators (via ModuleInitializer)
+        CommandSegmentRegistry.ApplyRegistrations(services);
         
-        // Apply all registrations from Source Generators
-        CommandHandlerRegistry.ApplyRegistrations(services);
+        // Register composite provider that delegates to segments
+        services.TryAddScoped<ICommandProvider, CompositeCommandProvider>();
         
         return services;
     }
 
     /// <summary>
-    /// Dodaje CommandProvider do kontenera DI.
-    /// U¿yj AddCommandHandlers() zamiast tej metody.
+    /// Manually registers a command handler. AOT-safe version.
+    /// Use this when you want explicit control over handler registration.
+    /// </summary>
+    /// <typeparam name="THandler">Handler type implementing IRequestHandler&lt;TRequest, TResponse&gt;</typeparam>
+    /// <typeparam name="TRequest">Request type</typeparam>
+    /// <typeparam name="TResponse">Response type</typeparam>
+    public static IServiceCollection AddCommand<THandler, TRequest, TResponse>(this IServiceCollection services)
+        where THandler : class, IRequestHandler<TRequest, TResponse>
+        where TRequest : IRequest<TResponse>
+        where TResponse : notnull
+    {
+        services.AddCommandHandlers();
+        services.TryAddScoped<THandler>();
+        services.TryAddScoped<IRequestHandler<TRequest, TResponse>>(sp => sp.GetRequiredService<THandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandProviderSegment, SingleCommandSegment<TRequest, TResponse>>());
+        
+        return services;
+    }
+
+    /// <summary>
+    /// Registers CommandProvider. Use AddCommandHandlers() instead.
     /// </summary>
     [Obsolete("Use AddCommandHandlers() instead. This method will be removed in future versions.")]
     public static IServiceCollection AddCommandProvider(this IServiceCollection services)
-    {
-        return services.AddCommandHandlers();
-    }
+        => services.AddCommandHandlers();
+}
 
-    /// <summary>
-    /// Rejestruje handler w kontenerze DI.
-    /// Handler musi implementowaæ IRequestHandler&lt;TRequest, TResponse&gt;.
-    /// Uwaga: Ta metoda u¿ywa reflection i nie jest AOT-safe.
-    /// Dla AOT/trimming u¿yj AddCommandHandlers() z Source Generatora.
-    /// </summary>
-    /// <typeparam name="THandler">Typ handlera implementuj¹cy IRequestHandler</typeparam>
-    [RequiresDynamicCode("This method uses reflection to register handlers. For AOT/trimming, use AddCommandHandlers() from the source generator.")]
-    [RequiresUnreferencedCode("This method uses reflection to discover handler interfaces. For AOT/trimming, use AddCommandHandlers() from the source generator.")]
-    public static IServiceCollection AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces | DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(this IServiceCollection services)
-        where THandler : class
+/// <summary>
+/// A segment that handles a single command type. Used for manual registration.
+/// </summary>
+internal sealed class SingleCommandSegment<TRequest, TResponse> : ICommandProviderSegment
+    where TRequest : IRequest<TResponse>
+    where TResponse : notnull
+{
+    public async Task<(bool Handled, TResult? Result)> TryHandleAsync<TResult>(
+        IRequest<TResult> request,
+        IServiceProvider serviceProvider,
+        CancellationToken cancellationToken)
+        where TResult : notnull
     {
-        services.AddCommandHandlers(); // Ensure base services are registered
+        if (request is TRequest typedRequest)
+        {
+            var handler = serviceProvider.GetRequiredService<IRequestHandler<TRequest, TResponse>>();
+            var result = await handler.HandleAsync(typedRequest, cancellationToken);
+            return (true, (TResult?)(object?)result);
+        }
         
-        var handlerType = typeof(THandler);
-
-        var handlerInterface = handlerType.GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
-
-        if (handlerInterface is null)
-        {
-            throw new InvalidOperationException(
-                $"{handlerType.Name} must implement IRequestHandler<TRequest, TResponse>. " +
-                $"Ensure the handler class implements the interface correctly."
-            );
-        }
-
-        var requestType = handlerInterface.GetGenericArguments()[0];
-        var responseType = handlerInterface.GetGenericArguments()[1];
-
-        // Rejestruj handler
-        services.AddScoped(handlerInterface, handlerType);
-
-        // Rejestruj wrapper
-        var wrapperType = typeof(RequestHandlerWrapper<,>).MakeGenericType(requestType, responseType);
-        services.AddScoped(wrapperType, sp =>
-        {
-            var handler = sp.GetRequiredService(handlerInterface);
-            return Activator.CreateInstance(wrapperType, handler)!;
-        });
-
-        return services;
-    }
-
-    /// <summary>
-    /// Rejestruje handler z okreœlonym czasem ¿ycia.
-    /// Uwaga: Ta metoda u¿ywa reflection i nie jest AOT-safe.
-    /// </summary>
-    [RequiresDynamicCode("This method uses reflection. For AOT/trimming, use AddCommandHandlers() from the source generator.")]
-    [RequiresUnreferencedCode("This method uses reflection. For AOT/trimming, use AddCommandHandlers() from the source generator.")]
-    public static IServiceCollection AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces | DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(this IServiceCollection services, ServiceLifetime lifetime)
-        where THandler : class
-    {
-        var handlerType = typeof(THandler);
-
-        var handlerInterface = handlerType.GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
-
-        if (handlerInterface is null)
-        {
-            throw new InvalidOperationException(
-                $"{handlerType.Name} must implement IRequestHandler<TRequest, TResponse>."
-            );
-        }
-
-        var requestType = handlerInterface.GetGenericArguments()[0];
-        var responseType = handlerInterface.GetGenericArguments()[1];
-
-        // Rejestruj handler z okreœlonym lifetime
-        services.Add(new ServiceDescriptor(handlerInterface, handlerType, lifetime));
-
-        // Rejestruj wrapper z tym samym lifetime
-        var wrapperType = typeof(RequestHandlerWrapper<,>).MakeGenericType(requestType, responseType);
-        services.Add(new ServiceDescriptor(wrapperType, sp =>
-        {
-            var handler = sp.GetRequiredService(handlerInterface);
-            return Activator.CreateInstance(wrapperType, handler)!;
-        }, lifetime));
-
-        return services;
+        return (false, default);
     }
 }

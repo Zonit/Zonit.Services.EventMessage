@@ -3,10 +3,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Zonit.Messaging.Commands;
 
 /// <summary>
-/// Registry for command handler registrations.
-/// Source Generators use this to register their handlers automatically.
+/// Registry for command handler segment registrations.
+/// Source Generators use ModuleInitializer to register their segments here.
+/// When AddCommandHandlers() is called, all registered segments are applied.
 /// </summary>
-public static class CommandHandlerRegistry
+public static class CommandSegmentRegistry
 {
     private static readonly List<Action<IServiceCollection>> _registrations = new();
     private static readonly object _lock = new();
@@ -15,7 +16,6 @@ public static class CommandHandlerRegistry
     /// Registers a handler registration action.
     /// Called by Source Generator's ModuleInitializer.
     /// </summary>
-    /// <param name="registration">Action that registers handlers in DI</param>
     public static void Register(Action<IServiceCollection> registration)
     {
         lock (_lock)
@@ -26,7 +26,7 @@ public static class CommandHandlerRegistry
 
     /// <summary>
     /// Applies all registered handler registrations to the service collection.
-    /// Called by AddCommandHandlers().
+    /// Called internally by AddCommandHandlers().
     /// </summary>
     internal static void ApplyRegistrations(IServiceCollection services)
     {
@@ -35,20 +35,6 @@ public static class CommandHandlerRegistry
             foreach (var registration in _registrations)
             {
                 registration(services);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets the number of registered sources (for diagnostics).
-    /// </summary>
-    public static int RegisteredSourceCount
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return _registrations.Count;
             }
         }
     }

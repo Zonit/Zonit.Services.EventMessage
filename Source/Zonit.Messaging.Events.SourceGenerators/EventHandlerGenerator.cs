@@ -83,20 +83,17 @@ public class EventHandlerGenerator : IIncrementalGenerator
             .Distinct()
             .ToList();
 
-        // Only generate if there are handlers
         if (validHandlers.Count == 0)
             return;
 
-        // Get assembly name for unique class naming
         var assemblyName = compilation.AssemblyName ?? "Unknown";
         var safeAssemblyName = assemblyName.Replace(".", "_").Replace("-", "_");
 
-        // Generate handler registrations that are automatically picked up
-        var registrationSource = GenerateHandlerRegistrations(validHandlers, safeAssemblyName);
-        context.AddSource("EventHandlerRegistration.g.cs", registrationSource);
+        var source = GenerateRegistration(validHandlers, safeAssemblyName);
+        context.AddSource("EventHandlerRegistration.g.cs", source);
     }
 
-    private static string GenerateHandlerRegistrations(List<EventHandlerInfo> handlers, string safeAssemblyName)
+    private static string GenerateRegistration(List<EventHandlerInfo> handlers, string safeAssemblyName)
     {
         var sb = new StringBuilder();
 
@@ -111,23 +108,17 @@ public class EventHandlerGenerator : IIncrementalGenerator
         sb.AppendLine("namespace Zonit.Messaging.Events.Generated;");
         sb.AppendLine();
         sb.AppendLine("/// <summary>");
-        sb.AppendLine($"/// Auto-generated event handler registrations for assembly.");
-        sb.AppendLine("/// These registrations are automatically applied when AddEventHandlers() is called.");
+        sb.AppendLine("/// Auto-generated event handler registrations.");
         sb.AppendLine("/// </summary>");
-        sb.AppendLine($"[EventHandlerRegistrationSource]");
         sb.AppendLine($"internal static class EventHandlerRegistrations_{safeAssemblyName}");
         sb.AppendLine("{");
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Registers all discovered event handlers from this assembly.");
-        sb.AppendLine("    /// Called automatically by the messaging infrastructure.");
-        sb.AppendLine("    /// </summary>");
         sb.AppendLine("    [System.Runtime.CompilerServices.ModuleInitializer]");
         sb.AppendLine("    internal static void Initialize()");
         sb.AppendLine("    {");
-        sb.AppendLine("        EventHandlerRegistry.Register(RegisterHandlers);");
+        sb.AppendLine("        EventSegmentRegistry.Register(RegisterServices);");
         sb.AppendLine("    }");
         sb.AppendLine();
-        sb.AppendLine("    internal static void RegisterHandlers(IServiceCollection services)");
+        sb.AppendLine("    internal static void RegisterServices(IServiceCollection services)");
         sb.AppendLine("    {");
 
         foreach (var handler in handlers)
@@ -135,8 +126,7 @@ public class EventHandlerGenerator : IIncrementalGenerator
             sb.AppendLine($"        // Handler: {handler.HandlerName} for event: {handler.EventName}");
             sb.AppendLine($"        services.TryAddScoped<{handler.HandlerFullName}>();");
             sb.AppendLine($"        services.TryAddScoped<IEventHandler<{handler.EventFullName}>>(sp => sp.GetRequiredService<{handler.HandlerFullName}>());");
-            sb.AppendLine($"        services.AddSingleton<EventHandlerRegistration>(new EventHandlerRegistration<{handler.EventFullName}>());");
-            sb.AppendLine();
+            sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Singleton<EventHandlerRegistration>(new EventHandlerRegistration<{handler.EventFullName}>()));");
         }
 
         sb.AppendLine("    }");
