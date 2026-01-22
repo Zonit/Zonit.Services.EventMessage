@@ -213,6 +213,66 @@ public class MyHandler : IScheduleHandler<MyData>
 }
 ```
 
+## Simple Background Tasks (AddSchedule)
+
+For simple recurring tasks that don't require data, use `AddSchedule<THandler>`:
+
+### 1. Create a simple handler
+
+```csharp
+public class CleanupHandler : IScheduleHandler
+{
+    private readonly ILogger<CleanupHandler> _logger;
+    private readonly IDbContext _db;
+
+    public CleanupHandler(ILogger<CleanupHandler> logger, IDbContext db)
+    {
+        _logger = logger;
+        _db = db;
+    }
+
+    public async Task HandleAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Running cleanup...");
+        
+        // Delete old records
+        await _db.DeleteOldRecordsAsync(cancellationToken);
+    }
+}
+```
+
+### 2. Register at startup
+
+```csharp
+// In Program.cs or Startup.cs
+services.AddSchedule<CleanupHandler>(Schedule.EveryMinutes(30));
+
+// With options
+services.AddSchedule<ReportHandler>(options =>
+{
+    options.Name = "Daily Report";
+    options.Schedules = [Schedule.EveryDay(6, 0)];  // Daily at 6:00 AM
+    options.ExecuteOnStartup = true;  // Run immediately when app starts
+});
+
+// Multiple schedules
+services.AddSchedule<SyncHandler>(
+    Schedule.EveryDay(8, 0),   // Morning sync
+    Schedule.EveryDay(18, 0)   // Evening sync
+);
+```
+
+### When to use AddSchedule vs IScheduleProvider
+
+| Scenario | Use |
+|----------|-----|
+| Simple recurring task (cleanup, health check) | `AddSchedule<THandler>` |
+| Static schedule defined at startup | `AddSchedule<THandler>` |
+| Dynamic schedules created at runtime | `IScheduleProvider.Start()` |
+| Passing data to handler | `IScheduleProvider.Start()` |
+| User-configurable schedules | `IScheduleProvider.Start()` |
+| Need to stop/pause/resume | `IScheduleProvider.Start()` |
+
 ## Binary Storage
 
 The `Schedule` ValueObject uses compact 16-byte binary format:

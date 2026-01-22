@@ -51,6 +51,10 @@ public class ScheduleHandlerGenerator : IIncrementalGenerator
         if (classSymbol.IsAbstract || classSymbol.IsStatic)
             return null;
 
+        // Skip open generic types (classes with unbound type parameters like MyClass<T>)
+        if (classSymbol.IsGenericType && classSymbol.TypeParameters.Length > 0)
+            return null;
+
         // Find interface IScheduleHandler<T>
         foreach (var iface in classSymbol.AllInterfaces)
         {
@@ -60,6 +64,10 @@ public class ScheduleHandlerGenerator : IIncrementalGenerator
                 iface.ContainingNamespace?.ToDisplayString() == ScheduleHandlerNamespace)
             {
                 var dataType = iface.TypeArguments[0];
+
+                // Skip if data type is a type parameter (unbound generic)
+                if (dataType is ITypeParameterSymbol)
+                    return null;
 
                 return new ScheduleHandlerInfo(
                     HandlerFullName: classSymbol.ToDisplayString(),
