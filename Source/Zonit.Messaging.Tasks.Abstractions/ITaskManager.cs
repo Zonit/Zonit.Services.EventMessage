@@ -1,7 +1,7 @@
 namespace Zonit.Messaging.Tasks;
 
 /// <summary>
-/// Manager zadañ w tle - odpowiada za subskrypcje i publikacjê.
+/// Manager zadaï¿½ w tle - odpowiada za subskrypcje i publikacjï¿½.
 /// </summary>
 public interface ITaskManager
 {
@@ -14,7 +14,7 @@ public interface ITaskManager
     void Publish<TTask>(TTask payload, Guid? extensionId = null) where TTask : notnull;
 
     /// <summary>
-    /// Publikuje zadanie z okreœlon¹ nazw¹.
+    /// Publikuje zadanie z okreï¿½lonï¿½ nazwï¿½.
     /// </summary>
     /// <param name="taskName">Nazwa zadania</param>
     /// <param name="payload">Dane zadania</param>
@@ -22,67 +22,153 @@ public interface ITaskManager
     void Publish(string taskName, object payload, Guid? extensionId = null);
 
     /// <summary>
-    /// Subskrybuje handler do zadañ.
+    /// Subskrybuje handler do zadaï¿½.
     /// </summary>
     /// <typeparam name="TTask">Typ zadania</typeparam>
-    /// <param name="handler">Funkcja obs³uguj¹ca zadanie</param>
+    /// <param name="handler">Funkcja obsï¿½ugujï¿½ca zadanie</param>
     /// <param name="options">Opcje subskrypcji</param>
-    void Subscribe<TTask>(Func<TaskPayload<TTask>, Task> handler, TaskSubscriptionOptions? options = null) 
+    void Subscribe<TTask>(Func<TaskPayload<TTask>, Task> handler, TaskSubscriptionOptions? options = null)
         where TTask : notnull;
 
     /// <summary>
-    /// Subskrybuje handler do zadañ z okreœlon¹ nazw¹.
+    /// Subskrybuje handler do zadaï¿½ z okreï¿½lonï¿½ nazwï¿½.
     /// </summary>
     /// <param name="taskName">Nazwa zadania</param>
-    /// <param name="handler">Funkcja obs³uguj¹ca zadanie</param>
+    /// <param name="handler">Funkcja obsï¿½ugujï¿½ca zadanie</param>
     /// <param name="options">Opcje subskrypcji</param>
     void Subscribe(string taskName, Func<TaskPayload<object>, Task> handler, TaskSubscriptionOptions? options = null);
 
     /// <summary>
-    /// Subskrybuje zmiany stanu wszystkich zadañ.
+    /// Subskrybuje zmiany stanu wszystkich zadaï¿½.
     /// </summary>
-    /// <param name="handler">Handler wywo³ywany przy ka¿dej zmianie stanu.</param>
+    /// <param name="handler">Handler wywoï¿½ywany przy kaï¿½dej zmianie stanu.</param>
     /// <returns>Disposable do anulowania subskrypcji.</returns>
     IDisposable OnChange(Action<TaskState> handler);
 
     /// <summary>
-    /// Subskrybuje zmiany stanu zadañ dla konkretnego ExtensionId.
-    /// Bardziej wydajne ni¿ filtrowanie w handlerze.
+    /// Subskrybuje zmiany stanu zadaï¿½ dla konkretnego ExtensionId.
+    /// Bardziej wydajne niï¿½ filtrowanie w handlerze.
     /// </summary>
-    /// <param name="extensionId">Identyfikator rozszerzenia do œledzenia.</param>
-    /// <param name="handler">Handler wywo³ywany przy ka¿dej zmianie stanu.</param>
+    /// <param name="extensionId">Identyfikator rozszerzenia do ï¿½ledzenia.</param>
+    /// <param name="handler">Handler wywoï¿½ywany przy kaï¿½dej zmianie stanu.</param>
     /// <returns>Disposable do anulowania subskrypcji.</returns>
     IDisposable OnChange(Guid extensionId, Action<TaskState> handler);
 
     /// <summary>
-    /// Subskrybuje zmiany stanu zadañ okreœlonego typu.
-    /// Umo¿liwia œledzenie konkretnych typów tasków (np. ArticleTask, ProductTask).
+    /// Subskrybuje zmiany stanu zadaï¿½ okreï¿½lonego typu.
+    /// Umoï¿½liwia ï¿½ledzenie konkretnych typï¿½w taskï¿½w (np. ArticleTask, ProductTask).
     /// </summary>
-    /// <typeparam name="TTask">Typ zadania do œledzenia.</typeparam>
-    /// <param name="handler">Handler wywo³ywany przy ka¿dej zmianie stanu z dostêpem do danych zadania.</param>
+    /// <typeparam name="TTask">Typ zadania do ï¿½ledzenia.</typeparam>
+    /// <param name="handler">Handler wywoï¿½ywany przy kaï¿½dej zmianie stanu z dostï¿½pem do danych zadania.</param>
     /// <returns>Disposable do anulowania subskrypcji.</returns>
     IDisposable OnChange<TTask>(Action<TaskState<TTask>> handler) where TTask : notnull;
 
     /// <summary>
-    /// Subskrybuje zmiany stanu zadañ okreœlonego typu dla konkretnego ExtensionId.
+    /// Subskrybuje zmiany stanu zadaÅ„ okreÅ›lonego typu dla konkretnego ExtensionId.
     /// </summary>
-    /// <typeparam name="TTask">Typ zadania do œledzenia.</typeparam>
-    /// <param name="extensionId">Identyfikator rozszerzenia do œledzenia.</param>
-    /// <param name="handler">Handler wywo³ywany przy ka¿dej zmianie stanu z dostêpem do danych zadania.</param>
+    /// <typeparam name="TTask">Typ zadania do Å›ledzenia.</typeparam>
+    /// <param name="extensionId">Identyfikator rozszerzenia do Å›ledzenia.</param>
+    /// <param name="handler">Handler wywoÅ‚ywany przy kaÅ¼dej zmianie stanu z dostÄ™pem do danych zadania.</param>
     /// <returns>Disposable do anulowania subskrypcji.</returns>
     IDisposable OnChange<TTask>(Guid extensionId, Action<TaskState<TTask>> handler) where TTask : notnull;
+
+    /// <summary>
+    /// Subskrybuje zmiany stanu zadaÅ„ dwÃ³ch okreÅ›lonych typÃ³w.
+    /// </summary>
+    /// <typeparam name="TTask1">Pierwszy typ zadania do Å›ledzenia.</typeparam>
+    /// <typeparam name="TTask2">Drugi typ zadania do Å›ledzenia.</typeparam>
+    /// <param name="handler">Handler wywoÅ‚ywany przy kaÅ¼dej zmianie stanu.</param>
+    /// <returns>Disposable do anulowania subskrypcji.</returns>
+    IDisposable OnChange<TTask1, TTask2>(Action<TaskState> handler)
+        where TTask1 : notnull
+        where TTask2 : notnull;
+
+    /// <summary>
+    /// Subskrybuje zmiany stanu zadaÅ„ trzech okreÅ›lonych typÃ³w.
+    /// </summary>
+    /// <typeparam name="TTask1">Pierwszy typ zadania do Å›ledzenia.</typeparam>
+    /// <typeparam name="TTask2">Drugi typ zadania do Å›ledzenia.</typeparam>
+    /// <typeparam name="TTask3">Trzeci typ zadania do Å›ledzenia.</typeparam>
+    /// <param name="handler">Handler wywoÅ‚ywany przy kaÅ¼dej zmianie stanu.</param>
+    /// <returns>Disposable do anulowania subskrypcji.</returns>
+    IDisposable OnChange<TTask1, TTask2, TTask3>(Action<TaskState> handler)
+        where TTask1 : notnull
+        where TTask2 : notnull
+        where TTask3 : notnull;
+
+    /// <summary>
+    /// Subskrybuje zmiany stanu zadaÅ„ czterech okreÅ›lonych typÃ³w.
+    /// </summary>
+    /// <typeparam name="TTask1">Pierwszy typ zadania do Å›ledzenia.</typeparam>
+    /// <typeparam name="TTask2">Drugi typ zadania do Å›ledzenia.</typeparam>
+    /// <typeparam name="TTask3">Trzeci typ zadania do Å›ledzenia.</typeparam>
+    /// <typeparam name="TTask4">Czwarty typ zadania do Å›ledzenia.</typeparam>
+    /// <param name="handler">Handler wywoÅ‚ywany przy kaÅ¼dej zmianie stanu.</param>
+    /// <returns>Disposable do anulowania subskrypcji.</returns>
+    IDisposable OnChange<TTask1, TTask2, TTask3, TTask4>(Action<TaskState> handler)
+        where TTask1 : notnull
+        where TTask2 : notnull
+        where TTask3 : notnull
+        where TTask4 : notnull;
 
     /// <summary>
     /// Pobiera aktywne zadania (Pending lub Processing).
     /// </summary>
     /// <param name="extensionId">Opcjonalny filtr na ExtensionId.</param>
-    /// <returns>Kolekcja aktywnych zadañ.</returns>
+    /// <returns>Kolekcja aktywnych zadaÅ„.</returns>
     IReadOnlyCollection<TaskState> GetActiveTasks(Guid? extensionId = null);
+
+    /// <summary>
+    /// Pobiera aktywne zadania okreÅ›lonego typu (Pending lub Processing).
+    /// </summary>
+    /// <typeparam name="TTask">Typ zadania do filtrowania.</typeparam>
+    /// <param name="extensionId">Opcjonalny filtr na ExtensionId.</param>
+    /// <returns>Kolekcja aktywnych zadaÅ„ z typowanymi danymi.</returns>
+    IReadOnlyCollection<TaskState<TTask>> GetActiveTasks<TTask>(Guid? extensionId = null) where TTask : notnull;
+
+    /// <summary>
+    /// Pobiera aktywne zadania dwÃ³ch okreÅ›lonych typÃ³w (Pending lub Processing).
+    /// </summary>
+    /// <typeparam name="TTask1">Pierwszy typ zadania do filtrowania.</typeparam>
+    /// <typeparam name="TTask2">Drugi typ zadania do filtrowania.</typeparam>
+    /// <param name="extensionId">Opcjonalny filtr na ExtensionId.</param>
+    /// <returns>Kolekcja aktywnych zadaÅ„.</returns>
+    IReadOnlyCollection<TaskState> GetActiveTasks<TTask1, TTask2>(Guid? extensionId = null)
+        where TTask1 : notnull
+        where TTask2 : notnull;
+
+    /// <summary>
+    /// Pobiera aktywne zadania trzech okreÅ›lonych typÃ³w (Pending lub Processing).
+    /// </summary>
+    /// <typeparam name="TTask1">Pierwszy typ zadania do filtrowania.</typeparam>
+    /// <typeparam name="TTask2">Drugi typ zadania do filtrowania.</typeparam>
+    /// <typeparam name="TTask3">Trzeci typ zadania do filtrowania.</typeparam>
+    /// <param name="extensionId">Opcjonalny filtr na ExtensionId.</param>
+    /// <returns>Kolekcja aktywnych zadaÅ„.</returns>
+    IReadOnlyCollection<TaskState> GetActiveTasks<TTask1, TTask2, TTask3>(Guid? extensionId = null)
+        where TTask1 : notnull
+        where TTask2 : notnull
+        where TTask3 : notnull;
+
+    /// <summary>
+    /// Pobiera aktywne zadania czterech okreÅ›lonych typÃ³w (Pending lub Processing).
+    /// </summary>
+    /// <typeparam name="TTask1">Pierwszy typ zadania do filtrowania.</typeparam>
+    /// <typeparam name="TTask2">Drugi typ zadania do filtrowania.</typeparam>
+    /// <typeparam name="TTask3">Trzeci typ zadania do filtrowania.</typeparam>
+    /// <typeparam name="TTask4">Czwarty typ zadania do filtrowania.</typeparam>
+    /// <param name="extensionId">Opcjonalny filtr na ExtensionId.</param>
+    /// <returns>Kolekcja aktywnych zadaÅ„.</returns>
+    IReadOnlyCollection<TaskState> GetActiveTasks<TTask1, TTask2, TTask3, TTask4>(Guid? extensionId = null)
+        where TTask1 : notnull
+        where TTask2 : notnull
+        where TTask3 : notnull
+        where TTask4 : notnull;
 
     /// <summary>
     /// Pobiera stan konkretnego zadania.
     /// </summary>
     /// <param name="taskId">Identyfikator zadania.</param>
-    /// <returns>Stan zadania lub null jeœli nie istnieje.</returns>
+    /// <returns>Stan zadania lub null jeï¿½li nie istnieje.</returns>
     TaskState? GetTaskState(Guid taskId);
 }

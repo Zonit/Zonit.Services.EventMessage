@@ -360,6 +360,20 @@ taskManager.OnChange<ImportDataTask>(state =>
     Console.WriteLine($"Running for: {state.Duration?.TotalSeconds:F1}s");
 });
 
+// Monitor multiple task types at once (efficient filtering)
+taskManager.OnChange<ImportDataTask, ExportDataTask>(state =>
+{
+    // Receives updates only for ImportDataTask or ExportDataTask
+    UpdateProgress(state.TaskType, state.Progress);
+});
+
+// Monitor up to 4 types simultaneously
+taskManager.OnChange<Task1, Task2, Task3, Task4>(state =>
+{
+    // Efficient server-side filtering
+    NotifyUI(state);
+});
+
 // Monitor tasks for specific ExtensionId (e.g., organization)
 taskManager.OnChange(organizationId, state =>
 {
@@ -403,6 +417,20 @@ var activeTasks = taskManager.GetActiveTasks();
 // Get active tasks for specific ExtensionId
 var orgTasks = taskManager.GetActiveTasks(organizationId);
 
+// Get active tasks of specific type with typed data access
+var importTasks = taskManager.GetActiveTasks<ImportDataTask>();
+foreach (var task in importTasks)
+{
+    Console.WriteLine($"Import from {task.Data.Source}: {task.Progress}% - {task.Duration}");
+}
+
+// Get active tasks of multiple types
+var dataTasks = taskManager.GetActiveTasks<ImportDataTask, ExportDataTask>();
+var allProcessingTasks = taskManager.GetActiveTasks<Task1, Task2, Task3>();
+
+// Get tasks filtered by type AND ExtensionId
+var orgImports = taskManager.GetActiveTasks<ImportDataTask>(organizationId);
+
 foreach (var task in activeTasks)
 {
     Console.WriteLine($"{task.TaskType}: {task.Status} ({task.Progress}%) - {task.Duration}");
@@ -430,6 +458,51 @@ Tasks go through various states during their lifecycle:
 - **Duration tracking**: Real-time duration available via `Duration` property
 - **Typed access**: Use `OnChange<T>` to get typed access to task data
 - **Efficient filtering**: Filter by `ExtensionId` at the system level for better performance
+- **Multi-type monitoring**: Subscribe to multiple task types simultaneously (2-4 types) with single handler
+
+### 9. ITaskManager API Reference
+
+#### GetActiveTasks Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `GetActiveTasks()` | `IReadOnlyCollection<TaskState>` | All active tasks |
+| `GetActiveTasks(extensionId)` | `IReadOnlyCollection<TaskState>` | Active tasks for specific ExtensionId |
+| `GetActiveTasks<TTask>()` | `IReadOnlyCollection<TaskState<TTask>>` | Active tasks of specific type with typed data |
+| `GetActiveTasks<TTask>(extensionId)` | `IReadOnlyCollection<TaskState<TTask>>` | Active tasks of type for ExtensionId |
+| `GetActiveTasks<T1, T2>()` | `IReadOnlyCollection<TaskState>` | Active tasks of 2 types |
+| `GetActiveTasks<T1, T2, T3>()` | `IReadOnlyCollection<TaskState>` | Active tasks of 3 types |
+| `GetActiveTasks<T1, T2, T3, T4>()` | `IReadOnlyCollection<TaskState>` | Active tasks of 4 types |
+| `GetTaskState(taskId)` | `TaskState?` | Specific task by ID |
+
+#### OnChange Methods
+
+| Method | Parameters | Description |
+|--------|-----------|-------------|
+| `OnChange(handler)` | `Action<TaskState>` | Monitor all task changes |
+| `OnChange(extensionId, handler)` | `Guid, Action<TaskState>` | Monitor tasks for ExtensionId |
+| `OnChange<TTask>(handler)` | `Action<TaskState<TTask>>` | Monitor specific task type with typed data |
+| `OnChange<TTask>(extensionId, handler)` | `Guid, Action<TaskState<TTask>>` | Monitor type for ExtensionId |
+| `OnChange<T1, T2>(handler)` | `Action<TaskState>` | Monitor 2 task types |
+| `OnChange<T1, T2, T3>(handler)` | `Action<TaskState>` | Monitor 3 task types |
+| `OnChange<T1, T2, T3, T4>(handler)` | `Action<TaskState>` | Monitor 4 task types |
+
+All `OnChange` methods return `IDisposable` for unsubscribing.
+
+**Example: Monitoring Multiple Types**
+
+```csharp
+// Efficient server-side filtering - only 2 types are monitored
+var subscription = taskManager.OnChange<ImportTask, ExportTask>(state =>
+{
+    // This handler only receives ImportTask and ExportTask updates
+    // Much more efficient than filtering in the handler
+    Console.WriteLine($"{state.TaskType}: {state.Progress}%");
+});
+
+// Unsubscribe when done
+subscription.Dispose();
+```
 
 ---
 

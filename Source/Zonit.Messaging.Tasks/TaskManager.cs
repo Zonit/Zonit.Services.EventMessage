@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Zonit.Messaging.Tasks;
 
 /// <summary>
-/// Domyœlna implementacja ITaskManager.
-/// U¿ywa Channel do asynchronicznego przetwarzania zadañ w tle.
+/// Domyï¿½lna implementacja ITaskManager.
+/// Uï¿½ywa Channel do asynchronicznego przetwarzania zadaï¿½ w tle.
 /// </summary>
 public sealed class TaskManager : ITaskManager, IDisposable
 {
@@ -21,8 +21,8 @@ public sealed class TaskManager : ITaskManager, IDisposable
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
-        
-        // Cleanup starych tasków co 5 minut (usuwa zakoñczone starsze ni¿ 30 min)
+
+        // Cleanup starych taskï¿½w co 5 minut (usuwa zakoï¿½czone starsze niï¿½ 30 min)
         _cleanupTimer = new Timer(
             _ => _stateStore.CleanupOldTasks(TimeSpan.FromMinutes(30)),
             null,
@@ -60,22 +60,22 @@ public sealed class TaskManager : ITaskManager, IDisposable
         }
     }
 
-    public void Subscribe<TTask>(Func<TaskPayload<TTask>, Task> handler, TaskSubscriptionOptions? options = null) 
+    public void Subscribe<TTask>(Func<TaskPayload<TTask>, Task> handler, TaskSubscriptionOptions? options = null)
         where TTask : notnull
     {
         var taskName = GetTaskName<TTask>();
         var opts = options ?? new TaskSubscriptionOptions();
 
         var subscription = new TaskSubscription<TTask>(handler, opts, _logger, opts.ProgressSteps);
-        
+
         _subscriptions.AddOrUpdate(
             taskName,
             _ => [subscription],
             (_, list) => { list.Add(subscription); return list; });
 
         _logger.LogInformation(
-            "Subscribed to task '{TaskName}' with {WorkerCount} workers", 
-            taskName, 
+            "Subscribed to task '{TaskName}' with {WorkerCount} workers",
+            taskName,
             opts.WorkerCount);
     }
 
@@ -91,8 +91,8 @@ public sealed class TaskManager : ITaskManager, IDisposable
             (_, list) => { list.Add(subscription); return list; });
 
         _logger.LogInformation(
-            "Subscribed to task '{TaskName}' with {WorkerCount} workers", 
-            taskName, 
+            "Subscribed to task '{TaskName}' with {WorkerCount} workers",
+            taskName,
             opts.WorkerCount);
     }
 
@@ -116,9 +116,62 @@ public sealed class TaskManager : ITaskManager, IDisposable
         return _stateStore.Subscribe(extensionId, handler);
     }
 
+    public IDisposable OnChange<TTask1, TTask2>(Action<TaskState> handler)
+        where TTask1 : notnull
+        where TTask2 : notnull
+    {
+        return _stateStore.Subscribe([typeof(TTask1), typeof(TTask2)], handler);
+    }
+
+    public IDisposable OnChange<TTask1, TTask2, TTask3>(Action<TaskState> handler)
+        where TTask1 : notnull
+        where TTask2 : notnull
+        where TTask3 : notnull
+    {
+        return _stateStore.Subscribe([typeof(TTask1), typeof(TTask2), typeof(TTask3)], handler);
+    }
+
+    public IDisposable OnChange<TTask1, TTask2, TTask3, TTask4>(Action<TaskState> handler)
+        where TTask1 : notnull
+        where TTask2 : notnull
+        where TTask3 : notnull
+        where TTask4 : notnull
+    {
+        return _stateStore.Subscribe([typeof(TTask1), typeof(TTask2), typeof(TTask3), typeof(TTask4)], handler);
+    }
+
     public IReadOnlyCollection<TaskState> GetActiveTasks(Guid? extensionId = null)
     {
         return _stateStore.GetActiveTasks(extensionId);
+    }
+
+    public IReadOnlyCollection<TaskState<TTask>> GetActiveTasks<TTask>(Guid? extensionId = null) where TTask : notnull
+    {
+        return _stateStore.GetActiveTasks<TTask>(extensionId);
+    }
+
+    public IReadOnlyCollection<TaskState> GetActiveTasks<TTask1, TTask2>(Guid? extensionId = null)
+        where TTask1 : notnull
+        where TTask2 : notnull
+    {
+        return _stateStore.GetActiveTasks([typeof(TTask1), typeof(TTask2)], extensionId);
+    }
+
+    public IReadOnlyCollection<TaskState> GetActiveTasks<TTask1, TTask2, TTask3>(Guid? extensionId = null)
+        where TTask1 : notnull
+        where TTask2 : notnull
+        where TTask3 : notnull
+    {
+        return _stateStore.GetActiveTasks([typeof(TTask1), typeof(TTask2), typeof(TTask3)], extensionId);
+    }
+
+    public IReadOnlyCollection<TaskState> GetActiveTasks<TTask1, TTask2, TTask3, TTask4>(Guid? extensionId = null)
+        where TTask1 : notnull
+        where TTask2 : notnull
+        where TTask3 : notnull
+        where TTask4 : notnull
+    {
+        return _stateStore.GetActiveTasks([typeof(TTask1), typeof(TTask2), typeof(TTask3), typeof(TTask4)], extensionId);
     }
 
     public TaskState? GetTaskState(Guid taskId)
@@ -134,7 +187,7 @@ public sealed class TaskManager : ITaskManager, IDisposable
         _disposed = true;
 
         _cleanupTimer.Dispose();
-        
+
         foreach (var subscriptions in _subscriptions.Values)
         {
             foreach (var subscription in subscriptions)
@@ -147,7 +200,7 @@ public sealed class TaskManager : ITaskManager, IDisposable
 }
 
 /// <summary>
-/// Wewnêtrzna klasa reprezentuj¹ca subskrypcjê zadania.
+/// Wewnï¿½trzna klasa reprezentujï¿½ca subskrypcjï¿½ zadania.
 /// </summary>
 internal abstract class TaskSubscription : IDisposable
 {
@@ -170,8 +223,8 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
     private TaskStateStore? _stateStore;
 
     public TaskSubscription(
-        Func<TaskPayload<TTask>, Task> handler, 
-        TaskSubscriptionOptions options, 
+        Func<TaskPayload<TTask>, Task> handler,
+        TaskSubscriptionOptions options,
         ILogger logger,
         TaskProgressStep[]? progressSteps)
     {
@@ -196,13 +249,13 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
     public override void Enqueue(object payload, Guid? extensionId, TaskStateStore stateStore)
     {
         _stateStore = stateStore;
-        
+
         if (payload is TTask typedPayload)
         {
             var taskId = Guid.NewGuid();
             var totalSteps = _progressSteps?.Length;
             var taskType = typeof(TTask).FullName ?? typeof(TTask).Name;
-            
+
             stateStore.CreateTask(taskId, taskType, extensionId, totalSteps, _options.Title, _options.Description, typedPayload);
             _channel.Writer.TryWrite((typedPayload, extensionId, taskId));
         }
@@ -231,7 +284,7 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
                 {
                     using var timeoutCts = new CancellationTokenSource(_options.Timeout);
                     using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                        timeoutCts.Token, 
+                        timeoutCts.Token,
                         cancellationToken);
 
                     progressContext = new TaskProgressContext(
@@ -249,7 +302,7 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
 
                     await _handler(payload);
                     success = true;
-                    
+
                     progressContext.Dispose();
                     _stateStore?.CompleteTask(taskId);
                 }
@@ -263,21 +316,21 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
                 {
                     progressContext?.Dispose();
                     retryCount++;
-                    
+
                     if (retryCount <= _options.MaxRetries)
                     {
-                        _logger.LogWarning(ex, 
-                            "Error processing task of type '{TaskType}', retry {RetryCount}/{MaxRetries}", 
+                        _logger.LogWarning(ex,
+                            "Error processing task of type '{TaskType}', retry {RetryCount}/{MaxRetries}",
                             typeof(TTask).Name, retryCount, _options.MaxRetries);
                         await Task.Delay(_options.RetryDelay, cancellationToken);
                     }
                     else
                     {
-                        _logger.LogError(ex, "Error processing task of type '{TaskType}' after {RetryCount} retries", 
+                        _logger.LogError(ex, "Error processing task of type '{TaskType}' after {RetryCount} retries",
                             typeof(TTask).Name, retryCount);
-                        
+
                         _stateStore?.FailTask(taskId);
-                        
+
                         if (!_options.ContinueOnError)
                             throw;
                     }
@@ -290,7 +343,7 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
     {
         _cts.Cancel();
         _channel.Writer.Complete();
-        
+
         try
         {
             Task.WhenAll(_workers).Wait(TimeSpan.FromSeconds(5));

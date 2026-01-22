@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace Zonit.Messaging.Tasks;
 
 /// <summary>
-/// Przechowuje stan zadañ i zarz¹dza subskrypcjami zmian.
+/// Przechowuje stan zadaï¿½ i zarzï¿½dza subskrypcjami zmian.
 /// </summary>
 internal sealed class TaskStateStore
 {
@@ -51,14 +51,14 @@ internal sealed class TaskStateStore
     }
 
     /// <summary>
-    /// Aktualizuje postêp zadania.
+    /// Aktualizuje postï¿½p zadania.
     /// </summary>
     public void UpdateProgress(Guid taskId, int progress, int? currentStep, string? message)
     {
         if (_tasks.TryGetValue(taskId, out var state))
         {
-            var changed = state.Progress != progress || 
-                          state.CurrentStep != currentStep || 
+            var changed = state.Progress != progress ||
+                          state.CurrentStep != currentStep ||
                           (message is not null && state.Message != message);
 
             if (changed)
@@ -78,7 +78,7 @@ internal sealed class TaskStateStore
     }
 
     /// <summary>
-    /// Oznacza zadanie jako rozpoczête.
+    /// Oznacza zadanie jako rozpoczï¿½te.
     /// </summary>
     public void StartTask(Guid taskId)
     {
@@ -90,7 +90,7 @@ internal sealed class TaskStateStore
     }
 
     /// <summary>
-    /// Oznacza zadanie jako zakoñczone.
+    /// Oznacza zadanie jako zakoï¿½czone.
     /// </summary>
     public void CompleteTask(Guid taskId)
     {
@@ -127,7 +127,7 @@ internal sealed class TaskStateStore
     }
 
     /// <summary>
-    /// Usuwa zakoñczone zadania starsze ni¿ podany czas.
+    /// Usuwa zakoï¿½czone zadania starsze niï¿½ podany czas.
     /// </summary>
     public int CleanupOldTasks(TimeSpan maxAge)
     {
@@ -167,7 +167,7 @@ internal sealed class TaskStateStore
     public IReadOnlyCollection<TaskState> GetActiveTasks(Guid? extensionId = null)
     {
         var activeStatuses = new[] { TaskStatus.Pending, TaskStatus.Processing };
-        
+
         return _tasks.Values
             .Where(s => activeStatuses.Contains(s.Status))
             .Where(s => !extensionId.HasValue || s.ExtensionId == extensionId)
@@ -176,7 +176,42 @@ internal sealed class TaskStateStore
     }
 
     /// <summary>
-    /// Subskrybuje zmiany wszystkich zadañ.
+    /// Pobiera aktywne zadania okreÅ›lonego typu.
+    /// </summary>
+    public IReadOnlyCollection<TaskState<TTask>> GetActiveTasks<TTask>(Guid? extensionId = null) where TTask : notnull
+    {
+        var activeStatuses = new[] { TaskStatus.Pending, TaskStatus.Processing };
+        var taskType = typeof(TTask).FullName ?? typeof(TTask).Name;
+
+        return _tasks.Values
+            .Where(s => activeStatuses.Contains(s.Status))
+            .Where(s => s.TaskType == taskType)
+            .Where(s => !extensionId.HasValue || s.ExtensionId == extensionId)
+            .Select(s => TaskState<TTask>.FromBase(s))
+            .Where(s => s is not null)
+            .Cast<TaskState<TTask>>()
+            .ToList()
+            .AsReadOnly();
+    }
+
+    /// <summary>
+    /// Pobiera aktywne zadania dla wielu okreÅ›lonych typÃ³w.
+    /// </summary>
+    public IReadOnlyCollection<TaskState> GetActiveTasks(Type[] taskTypes, Guid? extensionId = null)
+    {
+        var activeStatuses = new[] { TaskStatus.Pending, TaskStatus.Processing };
+        var typeNames = taskTypes.Select(t => t.FullName ?? t.Name).ToHashSet();
+
+        return _tasks.Values
+            .Where(s => activeStatuses.Contains(s.Status))
+            .Where(s => typeNames.Contains(s.TaskType))
+            .Where(s => !extensionId.HasValue || s.ExtensionId == extensionId)
+            .ToList()
+            .AsReadOnly();
+    }
+
+    /// <summary>
+    /// Subskrybuje zmiany wszystkich zadaÅ„.
     /// </summary>
     public IDisposable Subscribe(Action<TaskState> handler)
     {
@@ -187,12 +222,12 @@ internal sealed class TaskStateStore
     }
 
     /// <summary>
-    /// Subskrybuje zmiany zadañ dla konkretnego ExtensionId.
+    /// Subskrybuje zmiany zadaï¿½ dla konkretnego ExtensionId.
     /// </summary>
     public IDisposable Subscribe(Guid extensionId, Action<TaskState> handler)
     {
         var subscriptionId = Guid.NewGuid();
-        
+
         var extensionSubs = _extensionSubscribers.GetOrAdd(extensionId, _ => new ConcurrentDictionary<Guid, Action<TaskState>>());
         extensionSubs[subscriptionId] = handler;
 
@@ -207,13 +242,13 @@ internal sealed class TaskStateStore
     }
 
     /// <summary>
-    /// Subskrybuje zmiany zadañ okreœlonego typu.
+    /// Subskrybuje zmiany zadaï¿½ okreï¿½lonego typu.
     /// </summary>
     public IDisposable Subscribe<TTask>(Action<TaskState<TTask>> handler) where TTask : notnull
     {
         var subscriptionId = Guid.NewGuid();
         var taskType = typeof(TTask).FullName ?? typeof(TTask).Name;
-        
+
         var typeSubs = _typeSubscribers.GetOrAdd(taskType, _ => new ConcurrentDictionary<Guid, Action<TaskState>>());
         typeSubs[subscriptionId] = state =>
         {
@@ -235,14 +270,14 @@ internal sealed class TaskStateStore
     }
 
     /// <summary>
-    /// Subskrybuje zmiany zadañ okreœlonego typu dla konkretnego ExtensionId.
+    /// Subskrybuje zmiany zadaÅ„ okreÅ›lonego typu dla konkretnego ExtensionId.
     /// </summary>
     public IDisposable Subscribe<TTask>(Guid extensionId, Action<TaskState<TTask>> handler) where TTask : notnull
     {
         var subscriptionId = Guid.NewGuid();
         var taskType = typeof(TTask).FullName ?? typeof(TTask).Name;
         var key = (taskType, extensionId);
-        
+
         var typeSubs = _typeExtensionSubscribers.GetOrAdd(key, _ => new ConcurrentDictionary<Guid, Action<TaskState>>());
         typeSubs[subscriptionId] = state =>
         {
@@ -263,6 +298,33 @@ internal sealed class TaskStateStore
         });
     }
 
+    /// <summary>
+    /// Subskrybuje zmiany zadaÅ„ dla wielu okreÅ›lonych typÃ³w.
+    /// </summary>
+    public IDisposable Subscribe(Type[] taskTypes, Action<TaskState> handler)
+    {
+        var typeNames = taskTypes.Select(t => t.FullName ?? t.Name).ToHashSet();
+        var subscriptions = new List<IDisposable>();
+
+        foreach (var typeName in typeNames)
+        {
+            var subscriptionId = Guid.NewGuid();
+            var typeSubs = _typeSubscribers.GetOrAdd(typeName, _ => new ConcurrentDictionary<Guid, Action<TaskState>>());
+            typeSubs[subscriptionId] = handler;
+
+            subscriptions.Add(new Subscription(() =>
+            {
+                typeSubs.TryRemove(subscriptionId, out _);
+                if (typeSubs.IsEmpty)
+                {
+                    _typeSubscribers.TryRemove(typeName, out _);
+                }
+            }));
+        }
+
+        return new CompositeSubscription(subscriptions);
+    }
+
     private void NotifySubscribers(TaskState state)
     {
         // Global subscribers
@@ -279,7 +341,7 @@ internal sealed class TaskStateStore
         }
 
         // Extension-specific subscribers
-        if (state.ExtensionId.HasValue && 
+        if (state.ExtensionId.HasValue &&
             _extensionSubscribers.TryGetValue(state.ExtensionId.Value, out var extensionSubs))
         {
             foreach (var handler in extensionSubs.Values)
@@ -338,6 +400,22 @@ internal sealed class TaskStateStore
             if (_disposed) return;
             _disposed = true;
             onDispose();
+        }
+    }
+
+    private sealed class CompositeSubscription(IEnumerable<IDisposable> subscriptions) : IDisposable
+    {
+        private readonly List<IDisposable> _subscriptions = subscriptions.ToList();
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            foreach (var subscription in _subscriptions)
+            {
+                subscription.Dispose();
+            }
         }
     }
 }
