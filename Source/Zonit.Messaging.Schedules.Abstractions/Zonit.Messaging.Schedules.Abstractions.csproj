@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    
+    <!-- Package-specific metadata -->
+    <PackageId>Zonit.Messaging.Schedules.Abstractions</PackageId>
+    <Title>Zonit.Messaging.Schedules.Abstractions</Title>
+    <Description>Abstractions and interfaces for Zonit.Messaging.Schedules - a scheduled job processing library with cron-like and interval-based scheduling.</Description>
+    <PackageTags>schedules;scheduler;cron;jobs;abstractions;interfaces;messaging</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Zonit.Messaging.Schedules" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Zonit.Extensions" />
+  </ItemGroup>
+ 
+</Project>

@@ -16,6 +16,8 @@ A lightweight, high-performance .NET library for building **event-driven** and *
 | **Zonit.Messaging.Events.Abstractions** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Events.Abstractions.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Events.Abstractions.svg) | Event interfaces |
 | **Zonit.Messaging.Tasks** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Tasks.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Tasks.svg) | Background Jobs |
 | **Zonit.Messaging.Tasks.Abstractions** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Tasks.Abstractions.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Tasks.Abstractions.svg) | Task interfaces |
+| **Zonit.Messaging.Schedules** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Schedules.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Schedules.svg) | Recurring Jobs |
+| **Zonit.Messaging.Schedules.Abstractions** | ![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Schedules.Abstractions.svg) | ![NuGet](https://img.shields.io/nuget/dt/Zonit.Messaging.Schedules.Abstractions.svg) | Schedule interfaces |
 
 ### Legacy Packages (deprecated)
 
@@ -29,11 +31,13 @@ A lightweight, high-performance .NET library for building **event-driven** and *
 dotnet add package Zonit.Messaging.Commands
 dotnet add package Zonit.Messaging.Events
 dotnet add package Zonit.Messaging.Tasks
+dotnet add package Zonit.Messaging.Schedules
 
 # Or via NuGet Package Manager
 Install-Package Zonit.Messaging.Commands
 Install-Package Zonit.Messaging.Events
 Install-Package Zonit.Messaging.Tasks
+Install-Package Zonit.Messaging.Schedules
 ```
 
 ---
@@ -43,6 +47,7 @@ Install-Package Zonit.Messaging.Tasks
 - **Commands (CQRS)** - Request/Response pattern with strongly-typed handlers
 - **Events (Pub/Sub)** - Publish events to multiple subscribers (fan-out)
 - **Tasks (Background Jobs)** - Queue long-running operations with retry support
+- **Schedules (Recurring Jobs)** - Execute jobs on schedule (cron-like, strongly-typed)
 - **Transaction Support** - Group events into transactions to be processed sequentially
 - **AOT-Safe** - Full Native AOT and trimming support via Source Generators
 - **Concurrent Processing** - Control the number of concurrently executed handlers
@@ -66,11 +71,13 @@ Just call the registration methods - they work with or without handlers:
 using Zonit.Messaging.Commands;
 using Zonit.Messaging.Events;
 using Zonit.Messaging.Tasks;
+using Zonit.Messaging.Schedules;
 
 // In your DI configuration (Program.cs or plugin registration)
 services.AddCommandHandlers();  // Registers Commands (CQRS)
 services.AddEventHandlers();    // Registers Events (Pub/Sub)  
 services.AddTaskHandlers();     // Registers Tasks (Background Jobs)
+services.AddScheduleServices(); // Registers Schedules (Recurring Jobs)
 ```
 
 **That's it!** These methods:
@@ -96,6 +103,7 @@ public static class ServiceCollectionExtensions
         services.AddCommandHandlers();
         services.AddEventHandlers();
         services.AddTaskHandlers();
+        services.AddScheduleServices();
         
         return services;
     }
@@ -120,6 +128,9 @@ services.AddEvent<UserCreatedHandler, UserCreatedEvent>();
 
 // Tasks - specify handler and task types
 services.AddTask<SendEmailHandler, SendEmailTask>();
+
+// Schedules - specify handler and data types
+services.AddScheduleHandler<CleanupHandler, CleanupJobData>();
 ```
 
 ---
@@ -419,6 +430,169 @@ Tasks go through various states during their lifecycle:
 - **Duration tracking**: Real-time duration available via `Duration` property
 - **Typed access**: Use `OnChange<T>` to get typed access to task data
 - **Efficient filtering**: Filter by `ExtensionId` at the system level for better performance
+
+---
+
+## Schedules (Recurring Jobs)
+
+Execute jobs on a recurring schedule using strongly-typed `Schedule` ValueObject (cron-like but with compile-time safety).
+
+### 1. Define Handler
+
+```csharp
+public record CleanupJobData(string Directory, int RetentionDays);
+
+public class CleanupHandler : IScheduleHandler<CleanupJobData>
+{
+    private readonly ILogger<CleanupHandler> _logger;
+
+    public CleanupHandler(ILogger<CleanupHandler> logger)
+    {
+        _logger = logger;
+    }
+
+    public async Task HandleAsync(CleanupJobData data, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Cleanup: {Dir}, retention: {Days} days", 
+            data.Directory, data.RetentionDays);
+        
+        // Perform cleanup...
+        await Task.CompletedTask;
+    }
+}
+```
+
+### 2. Register Handlers
+
+```csharp
+using Zonit.Messaging.Schedules;
+
+// Option A: Automatic registration via Source Generator (Recommended)
+services.AddScheduleServices();  // Source Generator auto-discovers IScheduleHandler<T> implementations
+
+// Option B: Manual registration (100% AOT-safe)
+services.AddScheduleHandler<CleanupHandler, CleanupJobData>();
+```
+
+### 3. Start Schedules
+
+```csharp
+public class MyService
+{
+    private readonly IScheduleProvider _scheduleProvider;
+
+    public MyService(IScheduleProvider scheduleProvider)
+    {
+        _scheduleProvider = scheduleProvider;
+    }
+
+    public void StartJobs()
+    {
+        // Every 5 minutes
+        var id1 = _scheduleProvider.Start(
+            new CleanupJobData("/tmp", 7),
+            Schedule.EveryMinutes(5)
+        );
+
+        // Daily at 3:00 AM
+        var id2 = _scheduleProvider.Start(
+            new CleanupJobData("/logs", 30),
+            Schedule.EveryDay(3, 0)
+        );
+
+        // Multiple schedules (8:00 AM and 6:00 PM)
+        var id3 = _scheduleProvider.Start(
+            new CleanupJobData("/cache", 1),
+            Schedule.EveryDay(8, 0),
+            Schedule.EveryDay(18, 0)
+        );
+
+        // With options
+        var id4 = _scheduleProvider.Start(
+            new CleanupJobData("/data", 14),
+            options =>
+            {
+                options.Name = "DataCleanup";
+                options.Schedules = [Schedule.EveryHour(atMinute: 30)];
+                options.ExecuteOnStartup = true;
+            }
+        );
+    }
+}
+```
+
+### 4. Managing Schedules
+
+```csharp
+// Pause/Resume
+_scheduleProvider.Pause(id);
+_scheduleProvider.Resume(id);
+
+// Stop permanently
+_scheduleProvider.Stop(id);
+
+// Trigger immediate execution
+_scheduleProvider.TriggerNow(id);
+
+// Get state
+var state = _scheduleProvider.GetState(id);
+Console.WriteLine($"Status: {state?.Status}");
+Console.WriteLine($"Last run: {state?.LastExecutionAt}");
+Console.WriteLine($"Next run: {state?.NextExecutionAt}");
+Console.WriteLine($"Executions: {state?.ExecutionCount}");
+
+// Get all schedules
+var all = _scheduleProvider.GetAllSchedules();
+var active = _scheduleProvider.GetActiveSchedules();
+```
+
+### 5. Monitor State Changes
+
+```csharp
+// Subscribe to all schedule changes
+_scheduleProvider.OnChange(state =>
+{
+    Console.WriteLine($"{state.Name}: {state.Status} ({state.ExecutionCount} runs)");
+});
+
+// Subscribe to specific schedule
+_scheduleProvider.OnChange(scheduleId, state =>
+{
+    if (state.Status == ScheduleStatus.Failed)
+        AlertAdmin(state.LastError);
+});
+```
+
+### 6. Schedule Factory Methods
+
+| Method | Description | Example |
+|--------|-------------|---------|
+| `EverySeconds(n)` | Every N seconds | `Schedule.EverySeconds(30)` |
+| `EveryMinutes(n)` | Every N minutes | `Schedule.EveryMinutes(5)` |
+| `EveryHours(n)` | Every N hours | `Schedule.EveryHours(2)` |
+| `EveryDays(n)` | Every N days | `Schedule.EveryDays(1)` |
+| `EveryMinute()` | Every minute at :00 | `Schedule.EveryMinute()` |
+| `EveryHour(min)` | Every hour at minute | `Schedule.EveryHour(30)` |
+| `EveryDay(h, m)` | Daily at time | `Schedule.EveryDay(15, 0)` |
+| `EveryWeek(day, h, m)` | Weekly on day | `Schedule.EveryWeek(DayOfWeek.Monday, 9, 0)` |
+| `EveryMonth(day, h, m)` | Monthly on day | `Schedule.EveryMonth(1, 0, 0)` |
+| `EveryYear(mo, d, h, m)` | Yearly on date | `Schedule.EveryYear(1, 1, 0, 0)` |
+
+### 7. ScheduleState Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id` | `ScheduleId` | Unique schedule identifier |
+| `Name` | `string` | Schedule name |
+| `Status` | `ScheduleStatus` | Pending, Running, Paused, Stopped, Completed, Failed |
+| `Schedules` | `Schedule[]` | Schedule rules |
+| `CreatedAt` | `DateTimeOffset` | When schedule was created |
+| `LastExecutionAt` | `DateTimeOffset?` | When last execution occurred |
+| `NextExecutionAt` | `DateTimeOffset?` | When next execution is scheduled |
+| `ExecutionCount` | `int` | Total number of executions |
+| `ConsecutiveFailures` | `int` | Number of consecutive failures |
+| `LastError` | `string?` | Last error message |
+| `LastExecutionDuration` | `TimeSpan?` | Duration of last execution |
 
 ---
 

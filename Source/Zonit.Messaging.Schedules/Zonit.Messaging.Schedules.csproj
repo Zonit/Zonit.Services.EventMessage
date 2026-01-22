@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    
+    <!-- Package-specific metadata -->
+    <PackageId>Zonit.Messaging.Schedules</PackageId>
+    <Title>Zonit.Messaging.Schedules</Title>
+    <Description>Scheduled job processing with cron-like and interval-based scheduling, retry support, and real-time monitoring. Part of Zonit.Messaging - a lightweight library for event-driven architectures with full AOT/Trimming support.</Description>
+    <PackageTags>schedules;scheduler;cron;jobs;messaging;aot;trimming;source-generator</PackageTags>
+  </PropertyGroup>
+  
+  <!-- Source Generator as Analyzer -->
+  <ItemGroup>
+    <ProjectReference Include="..\Zonit.Messaging.Schedules.SourceGenerators\Zonit.Messaging.Schedules.SourceGenerators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  
+  <!-- For NuGet package: include the analyzer DLL -->
+  <ItemGroup>
+    <None Include="..\Zonit.Messaging.Schedules.SourceGenerators\bin\$(Configuration)\netstandard2.0\Zonit.Messaging.Schedules.SourceGenerators.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\Zonit.Messaging.Schedules.Abstractions\Zonit.Messaging.Schedules.Abstractions.csproj" />
+  </ItemGroup>
+</Project>
