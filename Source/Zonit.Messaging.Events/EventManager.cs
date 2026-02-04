@@ -5,8 +5,9 @@ using Microsoft.Extensions.Logging;
 namespace Zonit.Messaging.Events;
 
 /// <summary>
-/// Domy�lna implementacja IEventManager.
-/// U�ywa Channel do asynchronicznego przetwarzania event�w.
+/// Domyślna implementacja IEventManager.
+/// Używa Channel do asynchronicznego przetwarzania eventów.
+/// Obsługuje ambient transaction - eventy publikowane podczas aktywnej transakcji są kolejkowane.
 /// </summary>
 public sealed class EventManager : IEventManager, IDisposable
 {
@@ -15,10 +16,24 @@ public sealed class EventManager : IEventManager, IDisposable
     private readonly IServiceProvider _serviceProvider;
     private bool _disposed;
 
+    /// <summary>
+    /// Ambient transaction - przechowuje aktywną transakcję dla bieżącego async flow.
+    /// </summary>
+    private static readonly AsyncLocal<IEventTransaction?> _currentTransaction = new();
+
     public EventManager(ILogger<EventManager> logger, IServiceProvider serviceProvider)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+    }
+
+    /// <summary>
+    /// Gets or sets the current ambient transaction for this async flow.
+    /// </summary>
+    internal static IEventTransaction? CurrentTransaction
+    {
+        get => _currentTransaction.Value;
+        set => _currentTransaction.Value = value;
     }
 
     public void Publish<TEvent>(TEvent payload) where TEvent : notnull
@@ -32,6 +47,23 @@ public sealed class EventManager : IEventManager, IDisposable
         ArgumentNullException.ThrowIfNull(eventName);
         ArgumentNullException.ThrowIfNull(payload);
 
+        // Jeśli jest aktywna transakcja, kolejkuj event zamiast publikować bezpośrednio
+        if (_currentTransaction.Value is { } transaction)
+        {
+            transaction.Enqueue(eventName, payload);
+            _logger.LogDebug("Event '{EventName}' enqueued in active transaction", eventName);
+            return;
+        }
+
+        PublishDirect(eventName, payload);
+    }
+
+    /// <summary>
+    /// Bezpośrednia publikacja eventu (pomija ambient transaction).
+    /// Używane wewnętrznie przez EventTransaction podczas commit.
+    /// </summary>
+    internal void PublishDirect(string eventName, object payload)
+    {
         if (!_subscriptions.TryGetValue(eventName, out var subscriptions))
         {
             _logger.LogDebug("No subscribers for event '{EventName}'", eventName);
@@ -51,22 +83,47 @@ public sealed class EventManager : IEventManager, IDisposable
         }
     }
 
-    public void Subscribe<TEvent>(Func<TEvent, CancellationToken, Task> handler, EventSubscriptionOptions? options = null) 
+    /// <inheritdoc />
+    public async Task PublishAndWaitAsync(string eventName, object payload, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(eventName);
+        ArgumentNullException.ThrowIfNull(payload);
+
+        if (!_subscriptions.TryGetValue(eventName, out var subscriptions))
+        {
+            _logger.LogDebug("No subscribers for event '{EventName}'", eventName);
+            return;
+        }
+
+        foreach (var subscription in subscriptions)
+        {
+            try
+            {
+                await subscription.ExecuteAsync(payload, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing handler for event '{EventName}'", eventName);
+            }
+        }
+    }
+
+    public void Subscribe<TEvent>(Func<TEvent, CancellationToken, Task> handler, EventSubscriptionOptions? options = null)
         where TEvent : notnull
     {
         var eventName = GetEventName<TEvent>();
         var opts = options ?? new EventSubscriptionOptions();
 
         var subscription = new EventSubscription<TEvent>(handler, opts, _logger);
-        
+
         _subscriptions.AddOrUpdate(
             eventName,
             _ => [subscription],
             (_, list) => { list.Add(subscription); return list; });
 
         _logger.LogInformation(
-            "Subscribed to event '{EventName}' with {WorkerCount} workers", 
-            eventName, 
+            "Subscribed to event '{EventName}' with {WorkerCount} workers",
+            eventName,
             opts.WorkerCount);
     }
 
@@ -81,8 +138,8 @@ public sealed class EventManager : IEventManager, IDisposable
             (_, list) => { list.Add(subscription); return list; });
 
         _logger.LogInformation(
-            "Subscribed to event '{EventName}' with {WorkerCount} workers", 
-            eventName, 
+            "Subscribed to event '{EventName}' with {WorkerCount} workers",
+            eventName,
             opts.WorkerCount);
     }
 
@@ -110,11 +167,12 @@ public sealed class EventManager : IEventManager, IDisposable
 }
 
 /// <summary>
-/// Wewn�trzna klasa reprezentuj�ca subskrypcj�.
+/// Wewnętrzna klasa reprezentująca subskrypcję.
 /// </summary>
 internal abstract class EventSubscription : IDisposable
 {
     public abstract void Enqueue(object payload);
+    public abstract Task ExecuteAsync(object payload, CancellationToken cancellationToken);
     public abstract void Dispose();
 }
 
@@ -131,8 +189,8 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
     private readonly Task[] _workers;
 
     public EventSubscription(
-        Func<TEvent, CancellationToken, Task> handler, 
-        EventSubscriptionOptions options, 
+        Func<TEvent, CancellationToken, Task> handler,
+        EventSubscriptionOptions options,
         ILogger logger)
     {
         _handler = handler;
@@ -167,6 +225,26 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
         }
     }
 
+    public override async Task ExecuteAsync(object payload, CancellationToken cancellationToken)
+    {
+        if (payload is TEvent typedPayload)
+        {
+            using var timeoutCts = new CancellationTokenSource(_options.Timeout);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                timeoutCts.Token,
+                cancellationToken);
+
+            await _handler(typedPayload, linkedCts.Token);
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Expected event type '{ExpectedType}', got '{ActualType}'",
+                typeof(TEvent).Name,
+                payload.GetType().Name);
+        }
+    }
+
     private async Task ProcessEventsAsync(CancellationToken cancellationToken)
     {
         await foreach (var data in _channel.Reader.ReadAllAsync(cancellationToken))
@@ -175,7 +253,7 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
             {
                 using var timeoutCts = new CancellationTokenSource(_options.Timeout);
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                    timeoutCts.Token, 
+                    timeoutCts.Token,
                     cancellationToken);
 
                 await _handler(data, linkedCts.Token);
@@ -187,7 +265,7 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing event of type '{EventType}'", typeof(TEvent).Name);
-                
+
                 if (!_options.ContinueOnError)
                     throw;
             }
@@ -198,7 +276,7 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
     {
         _cts.Cancel();
         _channel.Writer.Complete();
-        
+
         try
         {
             Task.WhenAll(_workers).Wait(TimeSpan.FromSeconds(5));

@@ -5,6 +5,7 @@ namespace Zonit.Messaging.Events;
 /// <summary>
 /// Implementacja transakcji eventów.
 /// Grupuje eventy i przetwarza je sekwencyjnie po zatwierdzeniu.
+/// Automatycznie przechwytuje eventy publikowane przez IEventProvider.Publish() w czasie życia transakcji.
 /// </summary>
 public sealed class EventTransaction : IEventTransaction
 {
@@ -12,6 +13,7 @@ public sealed class EventTransaction : IEventTransaction
     private readonly ILogger _logger;
     private readonly List<(string EventName, object Payload)> _events = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IEventTransaction? _previousTransaction;
     private bool _committed;
     private bool _disposed;
     private Task? _completionTask;
@@ -20,6 +22,10 @@ public sealed class EventTransaction : IEventTransaction
     {
         _eventManager = eventManager;
         _logger = logger;
+
+        // Zapisz poprzednią transakcję (dla zagnieżdżonych) i ustaw bieżącą
+        _previousTransaction = EventManager.CurrentTransaction;
+        EventManager.CurrentTransaction = this;
     }
 
     public int Count => _events.Count;
@@ -76,10 +82,8 @@ public sealed class EventTransaction : IEventTransaction
 
             try
             {
-                _eventManager.Publish(eventName, payload);
-
-                // Kr�tka pauza mi�dzy eventami dla sekwencyjno�ci
-                await Task.Delay(1, cancellationToken);
+                // Czeka na zakończenie wszystkich handlerów przed przejściem do następnego eventu
+                await _eventManager.PublishAndWaitAsync(eventName, payload, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -101,6 +105,9 @@ public sealed class EventTransaction : IEventTransaction
     {
         if (_disposed) return;
         _disposed = true;
+
+        // Przywróć poprzednią transakcję (dla zagnieżdżonych)
+        EventManager.CurrentTransaction = _previousTransaction;
 
         // Auto-commit if there are uncommitted events
         if (!_committed && _events.Count > 0)
@@ -128,6 +135,9 @@ public sealed class EventTransaction : IEventTransaction
     {
         if (_disposed) return;
         _disposed = true;
+
+        // Przywróć poprzednią transakcję (dla zagnieżdżonych)
+        EventManager.CurrentTransaction = _previousTransaction;
 
         // Auto-commit if there are uncommitted events
         if (!_committed && _events.Count > 0)

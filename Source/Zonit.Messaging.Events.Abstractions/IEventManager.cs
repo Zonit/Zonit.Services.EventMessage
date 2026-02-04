@@ -1,43 +1,52 @@
 namespace Zonit.Messaging.Events;
 
 /// <summary>
-/// Manager eventów - wewnêtrzny serwis zarz¹dzaj¹cy subskrypcjami i publikacj¹.
+/// Manager eventÃ³w - wewnÄ™trzny serwis zarzÄ…dzajÄ…cy subskrypcjami i publikacjÄ….
 /// </summary>
 public interface IEventManager
 {
     /// <summary>
-    /// Publikuje event.
+    /// Publikuje event (fire-and-forget - nie czeka na zakoÅ„czenie handlerÃ³w).
     /// </summary>
     /// <typeparam name="TEvent">Typ eventu</typeparam>
     /// <param name="payload">Dane eventu</param>
     void Publish<TEvent>(TEvent payload) where TEvent : notnull;
 
     /// <summary>
-    /// Publikuje event z okreœlon¹ nazw¹.
+    /// Publikuje event z okreÅ›lonÄ… nazwÄ… (fire-and-forget).
     /// </summary>
     /// <param name="eventName">Nazwa eventu</param>
     /// <param name="payload">Dane eventu</param>
     void Publish(string eventName, object payload);
 
     /// <summary>
-    /// Subskrybuje handler do okreœlonego typu eventu.
+    /// Publikuje event i czeka na zakoÅ„czenie wszystkich handlerÃ³w.
+    /// UÅ¼ywane przez transakcje do sekwencyjnego przetwarzania.
+    /// </summary>
+    /// <param name="eventName">Nazwa eventu</param>
+    /// <param name="payload">Dane eventu</param>
+    /// <param name="cancellationToken">Token anulowania</param>
+    Task PublishAndWaitAsync(string eventName, object payload, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Subskrybuje handler do okreÅ›lonego typu eventu.
     /// </summary>
     /// <typeparam name="TEvent">Typ eventu</typeparam>
-    /// <param name="handler">Funkcja obs³uguj¹ca event</param>
+    /// <param name="handler">Funkcja obsÅ‚ugujÄ…ca event</param>
     /// <param name="options">Opcje subskrypcji</param>
-    void Subscribe<TEvent>(Func<TEvent, CancellationToken, Task> handler, EventSubscriptionOptions? options = null) 
+    void Subscribe<TEvent>(Func<TEvent, CancellationToken, Task> handler, EventSubscriptionOptions? options = null)
         where TEvent : notnull;
 
     /// <summary>
-    /// Subskrybuje handler do eventu o okreœlonej nazwie.
+    /// Subskrybuje handler do eventu o okreÅ›lonej nazwie.
     /// </summary>
     /// <param name="eventName">Nazwa eventu</param>
-    /// <param name="handler">Funkcja obs³uguj¹ca event</param>
+    /// <param name="handler">Funkcja obsÅ‚ugujÄ…ca event</param>
     /// <param name="options">Opcje subskrypcji</param>
     void Subscribe(string eventName, Func<object, CancellationToken, Task> handler, EventSubscriptionOptions? options = null);
 
     /// <summary>
-    /// Tworzy now¹ transakcjê eventów.
+    /// Tworzy nowÄ… transakcjÄ™ eventÃ³w.
     /// </summary>
     IEventTransaction CreateTransaction();
 }
@@ -48,7 +57,7 @@ public interface IEventManager
 public sealed class EventSubscriptionOptions
 {
     /// <summary>
-    /// Liczba równoleg³ych workerów przetwarzaj¹cych eventy.
+    /// Liczba rÃ³wnolegÅ‚ych workerÃ³w przetwarzajÄ…cych eventy.
     /// Default: 10
     /// </summary>
     public int WorkerCount { get; init; } = 10;
@@ -60,7 +69,7 @@ public sealed class EventSubscriptionOptions
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Czy kontynuowaæ przetwarzanie po b³êdzie.
+    /// Czy kontynuowaÄ‡ przetwarzanie po bÅ‚Ä™dzie.
     /// Default: true
     /// </summary>
     public bool ContinueOnError { get; init; } = true;
