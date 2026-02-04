@@ -1,9 +1,38 @@
 namespace Zonit.Messaging.Events;
 
 /// <summary>
-/// Transakcja event�w - grupuje eventy do sekwencyjnego przetwarzania.
-/// Eventy s� publikowane dopiero po wywo�aniu CommitAsync().
+/// Transakcja eventów - grupuje eventy do sekwencyjnego przetwarzania.
+/// Eventy są publikowane automatycznie podczas Dispose/DisposeAsync,
+/// lub mogą być wcześniej zatwierdzone przez CommitAsync().
 /// </summary>
+/// <remarks>
+/// <para>
+/// <strong>Użycie z <c>using</c> (synchroniczne):</strong><br/>
+/// Eventy są wysyłane synchronicznie podczas Dispose. Blokuje wątek do zakończenia.
+/// </para>
+/// <code>
+/// using (var tx = eventProvider.CreateTransaction())
+/// {
+///     tx.Enqueue(new MyEvent());
+/// } // Eventy wysłane synchronicznie
+/// </code>
+/// 
+/// <para>
+/// <strong>Użycie z <c>await using</c> (asynchroniczne):</strong><br/>
+/// Eventy są wysyłane asynchronicznie podczas DisposeAsync. Nie blokuje wątku.
+/// </para>
+/// <code>
+/// await using (var tx = eventProvider.CreateTransaction())
+/// {
+///     tx.Enqueue(new MyEvent());
+/// } // Eventy wysłane asynchronicznie
+/// </code>
+/// 
+/// <para>
+/// Obie wersje działają poprawnie - eventy są zawsze wysyłane przy zakończeniu bloku.
+/// W kodzie async preferuj <c>await using</c> dla lepszej wydajności.
+/// </para>
+/// </remarks>
 public interface IEventTransaction : IDisposable, IAsyncDisposable
 {
     /// <summary>
@@ -14,7 +43,7 @@ public interface IEventTransaction : IDisposable, IAsyncDisposable
     IEventTransaction Enqueue<TEvent>(TEvent payload) where TEvent : notnull;
 
     /// <summary>
-    /// Dodaje event z okre�lon� nazw� do transakcji.
+    /// Dodaje event z określoną nazwą do transakcji.
     /// </summary>
     /// <param name="eventName">Nazwa eventu</param>
     /// <param name="payload">Dane eventu</param>
@@ -22,17 +51,17 @@ public interface IEventTransaction : IDisposable, IAsyncDisposable
 
     /// <summary>
     /// Zatwierdza i publikuje wszystkie eventy w transakcji.
-    /// Eventy s� przetwarzane sekwencyjnie w kolejno�ci dodania.
+    /// Eventy są przetwarzane sekwencyjnie w kolejności dodania.
     /// </summary>
     Task CommitAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Czeka na zako�czenie przetwarzania wszystkich event�w.
+    /// Czeka na zakończenie przetwarzania wszystkich eventów.
     /// </summary>
     Task WaitForCompletionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Liczba event�w w transakcji.
+    /// Liczba eventów w transakcji.
     /// </summary>
     int Count { get; }
 }

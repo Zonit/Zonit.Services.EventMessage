@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 namespace Zonit.Messaging.Events;
 
 /// <summary>
-/// Implementacja transakcji eventów.
+/// Implementacja transakcji eventÃ³w.
 /// Grupuje eventy i przetwarza je sekwencyjnie po zatwierdzeniu.
 /// </summary>
 public sealed class EventTransaction : IEventTransaction
@@ -33,7 +33,7 @@ public sealed class EventTransaction : IEventTransaction
     public IEventTransaction Enqueue(string eventName, object payload)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        
+
         if (_committed)
         {
             throw new InvalidOperationException("Cannot enqueue events after transaction has been committed.");
@@ -77,8 +77,8 @@ public sealed class EventTransaction : IEventTransaction
             try
             {
                 _eventManager.Publish(eventName, payload);
-                
-                // Krótka pauza miêdzy eventami dla sekwencyjnoœci
+
+                // Krï¿½tka pauza miï¿½dzy eventami dla sekwencyjnoï¿½ci
                 await Task.Delay(1, cancellationToken);
             }
             catch (Exception ex)
@@ -101,6 +101,25 @@ public sealed class EventTransaction : IEventTransaction
     {
         if (_disposed) return;
         _disposed = true;
+
+        // Auto-commit if there are uncommitted events
+        if (!_committed && _events.Count > 0)
+        {
+            try
+            {
+                // Use Task.Run to avoid potential deadlocks in sync context
+                Task.Run(async () =>
+                {
+                    _committed = true;
+                    await ProcessEventsSequentiallyAsync(CancellationToken.None);
+                }).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during auto-commit on Dispose");
+            }
+        }
+
         _lock.Dispose();
         _events.Clear();
     }
@@ -109,6 +128,20 @@ public sealed class EventTransaction : IEventTransaction
     {
         if (_disposed) return;
         _disposed = true;
+
+        // Auto-commit if there are uncommitted events
+        if (!_committed && _events.Count > 0)
+        {
+            try
+            {
+                _committed = true;
+                _completionTask = ProcessEventsSequentiallyAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during auto-commit on DisposeAsync");
+            }
+        }
 
         if (_completionTask is not null)
         {
