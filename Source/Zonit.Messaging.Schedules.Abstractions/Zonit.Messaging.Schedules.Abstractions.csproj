@@ -13,7 +13,13 @@
     <InternalsVisibleTo Include="Zonit.Messaging.Schedules" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!-- Local Development Mode: Use ProjectReference (when IsZonitSdkWorkspace == 'true') -->
+  <ItemGroup Condition="'$(IsZonitSdkWorkspace)' == 'true'">
+    <ProjectReference Include="..\..\..\..\Extensions\Zonit.Extensions\Source\Zonit.Extensions\Zonit.Extensions.csproj" />
+  </ItemGroup>
+
+  <!-- Production Mode: Use PackageReference (when IsZonitSdkWorkspace is NOT 'true') -->
+  <ItemGroup Condition="'$(IsZonitSdkWorkspace)' != 'true'">
     <PackageReference Include="Zonit.Extensions" />
   </ItemGroup>
  

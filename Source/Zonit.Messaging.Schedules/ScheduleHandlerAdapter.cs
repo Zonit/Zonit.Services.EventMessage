@@ -1,31 +1,26 @@
 namespace Zonit.Messaging.Schedules;
 
 /// <summary>
-/// Adapter that wraps an <see cref="IScheduleHandler"/> as <see cref="IScheduleHandler{Unit}"/>.
-/// This is an internal infrastructure class and should not be used directly.
+/// Internal infrastructure: adapts an <see cref="IScheduleHandler"/> (no-data) to the
+/// typed <see cref="IScheduleHandler{TData}"/> pipeline by using a unique
+/// <see cref="ScheduleMarker{THandler}"/> as the data type.
 /// </summary>
-/// <typeparam name="THandler">The handler type implementing IScheduleHandler.</typeparam>
-internal abstract class ScheduleHandlerAdapterBase<THandler> : IScheduleHandler<Unit>
+/// <remarks>
+/// Each <c>AddSchedule&lt;THandler&gt;</c> call registers its own adapter under
+/// <c>IScheduleHandler&lt;ScheduleMarker&lt;THandler&gt;&gt;</c>, so scheduling THandler
+/// never triggers other registered handlers.
+/// </remarks>
+/// <typeparam name="THandler">User handler type implementing <see cref="IScheduleHandler"/>.</typeparam>
+internal sealed class ScheduleHandlerAdapter<THandler> : IScheduleHandler<ScheduleMarker<THandler>>
     where THandler : class, IScheduleHandler
 {
     private readonly THandler _handler;
 
-    protected ScheduleHandlerAdapterBase(THandler handler)
+    public ScheduleHandlerAdapter(THandler handler)
     {
         _handler = handler;
     }
 
-    public Task HandleAsync(Unit data, CancellationToken cancellationToken)
-    {
-        return _handler.HandleAsync(cancellationToken);
-    }
-}
-
-/// <summary>
-/// Concrete adapter - abstract base prevents Source Generator from detecting it.
-/// </summary>
-internal sealed class ScheduleHandlerAdapter<THandler> : ScheduleHandlerAdapterBase<THandler>
-    where THandler : class, IScheduleHandler
-{
-    public ScheduleHandlerAdapter(THandler handler) : base(handler) { }
+    public Task HandleAsync(ScheduleMarker<THandler> data, CancellationToken cancellationToken)
+        => _handler.HandleAsync(cancellationToken);
 }

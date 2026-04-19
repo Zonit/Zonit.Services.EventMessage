@@ -6,9 +6,9 @@ using System.Text;
 namespace Zonit.Messaging.Events.SourceGenerators;
 
 /// <summary>
-/// Source Generator który automatycznie generuje rejestracjê handlerów eventów dla AOT/Trimming.
-/// Skanuje projekt w poszukiwaniu klas implementuj¹cych IEventHandler&lt;T&gt; i generuje:
-/// 1. Extension method AddEventHandlers() dla automatycznej rejestracji wszystkich handlerów
+/// Source Generator ktï¿½ry automatycznie generuje rejestracjï¿½ handlerï¿½w eventï¿½w dla AOT/Trimming.
+/// Skanuje projekt w poszukiwaniu klas implementujï¿½cych IEventHandler&lt;T&gt; i generuje:
+/// 1. Extension method AddEventHandlers() dla automatycznej rejestracji wszystkich handlerï¿½w
 /// 2. AOT-safe subscription bez reflection
 /// </summary>
 [Generator]
@@ -19,7 +19,7 @@ public class EventHandlerGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // ZnajdŸ wszystkie klasy dziedzicz¹ce po EventBase<T>
+        // Znajdï¿½ wszystkie klasy dziedziczï¿½ce po EventBase<T>
         var handlerClasses = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (node, _) => IsCandidateHandlerClass(node),
@@ -47,7 +47,7 @@ public class EventHandlerGenerator : IIncrementalGenerator
         if (symbol is not INamedTypeSymbol classSymbol)
             return null;
 
-        // SprawdŸ czy klasa jest abstract lub static
+        // Sprawdï¿½ czy klasa jest abstract lub static
         if (classSymbol.IsAbstract || classSymbol.IsStatic)
             return null;
 
@@ -55,13 +55,13 @@ public class EventHandlerGenerator : IIncrementalGenerator
         // Legacy EventBase<T> uses different registration system and should not be detected here
         foreach (var iface in classSymbol.AllInterfaces)
         {
-            if (iface.IsGenericType 
+            if (iface.IsGenericType
                 && iface.Name == EventHandlerInterfaceName
                 && iface.ContainingNamespace?.ToDisplayString() == EventHandlerNamespace
                 && iface.TypeArguments.Length == 1)
             {
                 var eventType = iface.TypeArguments[0];
-                
+
                 return new EventHandlerInfo(
                     HandlerFullName: classSymbol.ToDisplayString(),
                     HandlerName: classSymbol.Name,
@@ -125,7 +125,9 @@ public class EventHandlerGenerator : IIncrementalGenerator
         {
             sb.AppendLine($"        // Handler: {handler.HandlerName} for event: {handler.EventName}");
             sb.AppendLine($"        services.TryAddScoped<{handler.HandlerFullName}>();");
-            sb.AppendLine($"        services.TryAddScoped<IEventHandler<{handler.EventFullName}>>(sp => sp.GetRequiredService<{handler.HandlerFullName}>());");
+            // Multiple handlers can exist per event - use TryAddEnumerable with concrete impl type
+            // so GetServices<IEventHandler<T>>() returns all of them.
+            sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Scoped<IEventHandler<{handler.EventFullName}>, {handler.HandlerFullName}>(static sp => sp.GetRequiredService<{handler.HandlerFullName}>()));");
             sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Singleton<EventHandlerRegistration>(new EventHandlerRegistration<{handler.EventFullName}>()));");
         }
 

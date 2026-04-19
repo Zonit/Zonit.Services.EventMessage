@@ -640,6 +640,7 @@ _scheduleProvider.OnChange(scheduleId, state =>
 
 | Method | Description | Example |
 |--------|-------------|---------|
+| `Startup` | Startup program | `Schedule.Startup()` |
 | `EverySeconds(n)` | Every N seconds | `Schedule.EverySeconds(30)` |
 | `EveryMinutes(n)` | Every N minutes | `Schedule.EveryMinutes(5)` |
 | `EveryHours(n)` | Every N hours | `Schedule.EveryHours(2)` |

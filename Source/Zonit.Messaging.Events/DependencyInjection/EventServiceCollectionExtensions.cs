@@ -22,12 +22,12 @@ public static class EventServiceCollectionExtensions
     {
         // Apply registrations from Source Generators (via ModuleInitializer)
         EventSegmentRegistry.ApplyRegistrations(services);
-        
+
         // Register core services
         services.TryAddSingleton<IEventManager, EventManager>();
         services.TryAddSingleton<IEventProvider, EventProvider>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EventHandlerRegistrationHostedService>());
-        
+
         return services;
     }
 
@@ -43,7 +43,9 @@ public static class EventServiceCollectionExtensions
     {
         services.AddEventHandlers();
         services.TryAddScoped<THandler>();
-        services.TryAddScoped<IEventHandler<TEvent>>(sp => sp.GetRequiredService<THandler>());
+        // Multiple handlers per event are valid (pub/sub). Use TryAddEnumerable with concrete
+        // impl type so GetServices<IEventHandler<TEvent>>() returns all registered handlers.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IEventHandler<TEvent>, THandler>(static sp => sp.GetRequiredService<THandler>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<EventHandlerRegistration>(new EventHandlerRegistration<TEvent>()));
         return services;
     }
@@ -62,7 +64,7 @@ public static class EventServiceCollectionExtensions
 
         services.AddEventHandlers();
         services.TryAddScoped<THandler>();
-        services.TryAddScoped<IEventHandler<TEvent>>(sp => sp.GetRequiredService<THandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IEventHandler<TEvent>, THandler>(static sp => sp.GetRequiredService<THandler>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<EventHandlerRegistration>(new EventHandlerRegistration<TEvent>(options)));
 
         return services;
@@ -86,7 +88,7 @@ public static class EventServiceCollectionExtensions
 }
 
 /// <summary>
-/// Opcje dla konkretnego handlera eventów.
+/// Opcje dla konkretnego handlera eventï¿½w.
 /// </summary>
 public class EventHandlerOptions<TEvent> where TEvent : notnull
 {

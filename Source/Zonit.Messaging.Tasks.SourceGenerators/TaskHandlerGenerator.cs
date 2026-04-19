@@ -6,9 +6,9 @@ using System.Text;
 namespace Zonit.Messaging.Tasks.SourceGenerators;
 
 /// <summary>
-/// Source Generator który automatycznie generuje rejestracjê handlerów zadañ dla AOT/Trimming.
-/// Skanuje projekt w poszukiwaniu klas dziedzicz¹cych po TaskHandler&lt;T&gt; lub TaskBase&lt;T&gt; i generuje:
-/// 1. Extension method AddTaskHandlers() dla automatycznej rejestracji wszystkich handlerów
+/// Source Generator ktï¿½ry automatycznie generuje rejestracjï¿½ handlerï¿½w zadaï¿½ dla AOT/Trimming.
+/// Skanuje projekt w poszukiwaniu klas dziedziczï¿½cych po TaskHandler&lt;T&gt; lub TaskBase&lt;T&gt; i generuje:
+/// 1. Extension method AddTaskHandlers() dla automatycznej rejestracji wszystkich handlerï¿½w
 /// 2. AOT-safe subscription bez reflection
 /// </summary>
 [Generator]
@@ -17,14 +17,14 @@ public class TaskHandlerGenerator : IIncrementalGenerator
     // New API
     private const string TaskHandlerClassName = "TaskHandler";
     private const string TaskHandlerNamespace = "Zonit.Messaging.Tasks";
-    
+
     // Legacy API
     private const string TaskBaseClassName = "TaskBase";
     private const string TaskBaseNamespace = "Zonit.Services.EventMessage";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // ZnajdŸ wszystkie klasy dziedzicz¹ce po TaskBase<T>
+        // Znajdï¿½ wszystkie klasy dziedziczï¿½ce po TaskBase<T>
         var handlerClasses = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (node, _) => IsCandidateHandlerClass(node),
@@ -52,11 +52,11 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         if (symbol is not INamedTypeSymbol classSymbol)
             return null;
 
-        // SprawdŸ czy klasa jest abstract lub static
+        // Sprawdï¿½ czy klasa jest abstract lub static
         if (classSymbol.IsAbstract || classSymbol.IsStatic)
             return null;
 
-        // ZnajdŸ klasê bazow¹ TaskHandler<T> (new API) lub TaskBase<T> (legacy)
+        // Znajdï¿½ klasï¿½ bazowï¿½ TaskHandler<T> (new API) lub TaskBase<T> (legacy)
         var baseType = classSymbol.BaseType;
         while (baseType != null)
         {
@@ -64,19 +64,19 @@ public class TaskHandlerGenerator : IIncrementalGenerator
             {
                 var baseTypeName = baseType.Name;
                 var baseTypeNamespace = baseType.ContainingNamespace?.ToDisplayString();
-                
+
                 // Check for new TaskHandler<T> API
-                bool isNewApi = baseTypeName == TaskHandlerClassName 
+                bool isNewApi = baseTypeName == TaskHandlerClassName
                     && baseTypeNamespace == TaskHandlerNamespace;
-                
+
                 // Check for legacy TaskBase<T> API
-                bool isLegacyApi = baseTypeName == TaskBaseClassName 
+                bool isLegacyApi = baseTypeName == TaskBaseClassName
                     && baseTypeNamespace == TaskBaseNamespace;
-                
+
                 if (isNewApi || isLegacyApi)
                 {
                     var taskType = baseType.TypeArguments[0];
-                    
+
                     return new TaskHandlerInfo(
                         HandlerFullName: classSymbol.ToDisplayString(),
                         HandlerName: classSymbol.Name,
@@ -122,7 +122,7 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         sb.AppendLine("using Microsoft.Extensions.DependencyInjection.Extensions;");
         sb.AppendLine("using Zonit.Messaging.Tasks;");
         sb.AppendLine("using Zonit.Messaging.Tasks.Hosting;");
-        
+
         if (handlers.Any(h => h.IsLegacy))
         {
             sb.AppendLine("using Zonit.Services.EventMessage;");
@@ -148,7 +148,9 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         {
             sb.AppendLine($"        // Handler: {handler.HandlerName} for task: {handler.TaskName}{(handler.IsLegacy ? " [LEGACY]" : "")}");
             sb.AppendLine($"        services.TryAddScoped<{handler.HandlerFullName}>();");
-            sb.AppendLine($"        services.TryAddScoped<ITaskHandler<{handler.TaskFullName}>>(sp => sp.GetRequiredService<{handler.HandlerFullName}>());");
+            // Multiple handlers can exist per task type - use TryAddEnumerable with concrete impl type
+            // so GetServices<ITaskHandler<T>>() returns all of them.
+            sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Scoped<ITaskHandler<{handler.TaskFullName}>, {handler.HandlerFullName}>(static sp => sp.GetRequiredService<{handler.HandlerFullName}>()));");
             sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Singleton<TaskHandlerRegistration>(new TaskHandlerRegistration<{handler.TaskFullName}>()));");
         }
 

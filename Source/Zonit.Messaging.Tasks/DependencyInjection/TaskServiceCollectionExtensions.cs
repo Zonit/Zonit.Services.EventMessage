@@ -22,12 +22,12 @@ public static class TaskServiceCollectionExtensions
     {
         // Apply registrations from Source Generators (via ModuleInitializer)
         TaskSegmentRegistry.ApplyRegistrations(services);
-        
+
         // Register core services
         services.TryAddSingleton<ITaskManager, TaskManager>();
         services.TryAddSingleton<ITaskProvider, TaskProvider>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, TaskHandlerRegistrationHostedService>());
-        
+
         return services;
     }
 
@@ -43,7 +43,9 @@ public static class TaskServiceCollectionExtensions
     {
         services.AddTaskHandlers();
         services.TryAddScoped<THandler>();
-        services.TryAddScoped<ITaskHandler<TTask>>(sp => sp.GetRequiredService<THandler>());
+        // Multiple handlers per task type are valid. Use TryAddEnumerable with concrete impl
+        // type so GetServices<ITaskHandler<TTask>>() returns all registered handlers.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ITaskHandler<TTask>, THandler>(static sp => sp.GetRequiredService<THandler>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<TaskHandlerRegistration>(new TaskHandlerRegistration<TTask>()));
         return services;
     }
@@ -62,7 +64,7 @@ public static class TaskServiceCollectionExtensions
 
         services.AddTaskHandlers();
         services.TryAddScoped<THandler>();
-        services.TryAddScoped<ITaskHandler<TTask>>(sp => sp.GetRequiredService<THandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ITaskHandler<TTask>, THandler>(static sp => sp.GetRequiredService<THandler>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<TaskHandlerRegistration>(new TaskHandlerRegistration<TTask>(options)));
 
         return services;

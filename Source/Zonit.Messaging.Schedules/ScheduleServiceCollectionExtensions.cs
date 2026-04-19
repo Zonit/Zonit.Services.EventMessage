@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Zonit.Extensions;
 
 namespace Zonit.Messaging.Schedules;
@@ -9,8 +10,6 @@ namespace Zonit.Messaging.Schedules;
 /// </summary>
 public static class ScheduleServiceCollectionExtensions
 {
-    private static bool _hostedServiceRegistered;
-
     /// <summary>
     /// Adds schedule services to the service collection.
     /// Call this once to register the core scheduling infrastructure.
@@ -21,7 +20,11 @@ public static class ScheduleServiceCollectionExtensions
     public static IServiceCollection AddScheduleServices(this IServiceCollection services)
     {
         services.TryAddSingleton<ScheduleManager>();
-        services.TryAddSingleton<IScheduleProvider>(sp => sp.GetRequiredService<ScheduleManager>());
+        services.TryAddSingleton<IScheduleProvider>(static sp => sp.GetRequiredService<ScheduleManager>());
+
+        // Register the hosted service once (TryAddEnumerable deduplicates by implementation type).
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, ScheduleHostedService>());
 
         // Apply handlers registered by Source Generators
         ScheduleSegmentRegistry.ApplyRegistrations(services);
@@ -41,12 +44,9 @@ public static class ScheduleServiceCollectionExtensions
     /// <code>
     /// // Run cleanup every 10 minutes
     /// services.AddSchedule&lt;CleanupHandler&gt;(Schedule.EveryMinutes(10));
-    /// 
-    /// // Run daily at 3:00 AM
-    /// services.AddSchedule&lt;ReportHandler&gt;(Schedule.EveryDay(3, 0));
-    /// 
-    /// // Run at multiple times
-    /// services.AddSchedule&lt;SyncHandler&gt;(Schedule.EveryDay(8, 0), Schedule.EveryDay(18, 0));
+    ///
+    /// // Run once at startup, then every Friday at 22:00 UTC
+    /// services.AddSchedule&lt;SyncHandler&gt;(Schedule.Startup(), Schedule.EveryWeek(DayOfWeek.Friday, 22));
     /// </code>
     /// </example>
     public static IServiceCollection AddSchedule<THandler>(
@@ -68,49 +68,44 @@ public static class ScheduleServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Configuration action for schedule options.</param>
     /// <returns>The service collection for chaining.</returns>
-    /// <example>
-    /// <code>
-    /// services.AddSchedule&lt;CleanupHandler&gt;(options =>
-    /// {
-    ///     options.Name = "Cleanup Task";
-    ///     options.Schedules = [Schedule.EveryMinutes(30)];
-    ///     options.ExecuteOnStartup = true;
-    /// });
-    /// </code>
-    /// </example>
     public static IServiceCollection AddSchedule<THandler>(
         this IServiceCollection services,
         Action<ScheduleOptions> configure)
         where THandler : class, IScheduleHandler
     {
+        ArgumentNullException.ThrowIfNull(configure);
+
         services.AddScheduleServices();
 
-        // Register handler using factory with ActivatorUtilities for DI support
-        services.TryAddScoped<THandler>(sp => ActivatorUtilities.CreateInstance<THandler>(sp));
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IScheduleHandler<Unit>>(
-            sp => new ScheduleHandlerAdapter<THandler>(sp.GetRequiredService<THandler>())));
+        // Register user handler. Use the two-arg generic overload so the factory's delegate type
+        // is Func<IServiceProvider, THandler>, keeping the concrete implementation type visible
+        // to the DI container (required by TryAddEnumerable).
+        services.TryAddScoped<THandler>(static sp => ActivatorUtilities.CreateInstance<THandler>(sp));
 
-        // Create registration for hosted service
+        // Each handler gets its own unique ScheduleMarker<THandler> data type so schedules do not
+        // cross-trigger other handlers (earlier design used shared Unit which caused this bug).
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IScheduleHandler<ScheduleMarker<THandler>>, ScheduleHandlerAdapter<THandler>>(
+                static sp => new ScheduleHandlerAdapter<THandler>(sp.GetRequiredService<THandler>())));
+
         var options = new ScheduleOptions();
         configure(options);
 
         if (options.Schedules.Length == 0)
             throw new ArgumentException("At least one schedule is required in options.");
 
-        services.AddSingleton(new ScheduleRegistration
+        services.AddSingleton<ScheduleRegistration>(new ScheduleRegistration<THandler>
         {
-            HandlerType = typeof(THandler),
             Schedules = options.Schedules,
-            Name = options.Name ?? typeof(THandler).Name,
-            ExecuteOnStartup = options.ExecuteOnStartup
+            Name = options.Name,
+            ExecuteOnStartup = options.ExecuteOnStartup,
+            Timeout = options.Timeout,
+            MaxRetries = options.MaxRetries,
+            RetryDelay = options.RetryDelay,
+            StopOnMaxRetries = options.StopOnMaxRetries,
+            Description = options.Description,
+            TimeZone = options.TimeZone
         });
-
-        // Register hosted service once
-        if (!_hostedServiceRegistered)
-        {
-            services.AddHostedService<ScheduleHostedService>();
-            _hostedServiceRegistered = true;
-        }
 
         return services;
     }
@@ -128,26 +123,37 @@ public static class ScheduleServiceCollectionExtensions
         where TData : notnull
     {
         services.AddScheduleServices();
-        // Using ActivatorUtilities for AOT compatibility with DI support
-        services.TryAddScoped<THandler>(sp => ActivatorUtilities.CreateInstance<THandler>(sp));
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IScheduleHandler<TData>>(sp => sp.GetRequiredService<THandler>()));
+        services.TryAddScoped<THandler>(static sp => ActivatorUtilities.CreateInstance<THandler>(sp));
+
+        // Two-arg generic overload → factory runtime type is Func<IServiceProvider, THandler>,
+        // so GetImplementationType() returns THandler (distinct from IScheduleHandler<TData>).
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IScheduleHandler<TData>, THandler>(
+                static sp => sp.GetRequiredService<THandler>()));
         return services;
     }
 
     /// <summary>
-    /// Registers a schedule handler for the specified data type with a factory.
+    /// Registers a schedule handler for the specified data type with a typed factory.
+    /// The factory must return the concrete handler type (not the interface) so DI can
+    /// deduplicate entries correctly.
     /// </summary>
+    /// <typeparam name="THandler">The concrete handler type.</typeparam>
     /// <typeparam name="TData">The data type the handler processes.</typeparam>
     /// <param name="services">The service collection.</param>
     /// <param name="implementationFactory">The factory to create the handler.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddScheduleHandler<TData>(
+    public static IServiceCollection AddScheduleHandler<THandler, TData>(
         this IServiceCollection services,
-        Func<IServiceProvider, IScheduleHandler<TData>> implementationFactory)
+        Func<IServiceProvider, THandler> implementationFactory)
+        where THandler : class, IScheduleHandler<TData>
         where TData : notnull
     {
+        ArgumentNullException.ThrowIfNull(implementationFactory);
+
         services.AddScheduleServices();
-        services.TryAddEnumerable(ServiceDescriptor.Scoped(implementationFactory));
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IScheduleHandler<TData>, THandler>(implementationFactory));
         return services;
     }
 }

@@ -131,7 +131,12 @@ public class ScheduleHandlerGenerator : IIncrementalGenerator
         {
             sb.AppendLine($"        // Handler: {handler.HandlerName} for data: {handler.DataTypeName}");
             sb.AppendLine($"        services.TryAddScoped<{handler.HandlerFullName}>();");
-            sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Scoped<IScheduleHandler<{handler.DataTypeFullName}>>(sp => sp.GetRequiredService<{handler.HandlerFullName}>()));");
+            // Use the two-arg generic overload so the factory delegate's runtime type is
+            // Func<IServiceProvider, THandler> (not Func<IServiceProvider, IScheduleHandler<T>>),
+            // which makes ServiceDescriptor.GetImplementationType() return the concrete handler type.
+            // This is required by TryAddEnumerable, which rejects descriptors where the implementation
+            // type equals the service type (or is object).
+            sb.AppendLine($"        services.TryAddEnumerable(ServiceDescriptor.Scoped<IScheduleHandler<{handler.DataTypeFullName}>, {handler.HandlerFullName}>(static sp => sp.GetRequiredService<{handler.HandlerFullName}>()));");
         }
 
         sb.AppendLine("    }");

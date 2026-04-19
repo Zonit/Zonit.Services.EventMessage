@@ -47,9 +47,29 @@ internal abstract class ScheduleEntry : IDisposable
 
         if (!nextTime.HasValue)
         {
-            Logger.LogWarning("Schedule '{Name}' has no valid next occurrence", State.Name);
+            // If all schedules are one-shot (e.g. Schedule.Startup()), there is no next
+            // occurrence and this is expected - don't warn.
+            var hasRecurring = false;
+            foreach (var s in Options.Schedules)
+            {
+                if (!s.IsStartup || s.IsInterval || HasCalendar(s))
+                {
+                    hasRecurring = true;
+                    break;
+                }
+            }
+
+            if (hasRecurring)
+                Logger.LogWarning("Schedule '{Name}' has no valid next occurrence", State.Name);
+            else
+                Logger.LogDebug("Schedule '{Name}' is startup-only; not rescheduling", State.Name);
+
             return;
         }
+
+        static bool HasCalendar(Schedule s) =>
+            s.Second.HasValue || s.Minute.HasValue || s.Hour.HasValue ||
+            s.DayOfMonth.HasValue || s.Month.HasValue || s.DayOfWeek.HasValue;
 
         State.NextExecutionAt = nextTime;
         var delay = nextTime.Value - now;
