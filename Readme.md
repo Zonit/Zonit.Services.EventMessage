@@ -196,7 +196,40 @@ public class UserCreatedEventHandler : IEventHandler<UserCreatedEvent>
 }
 ```
 
-### 2. Subscribe Manually (Alternative)
+### 2. Customize Per-Handler Defaults
+
+If a handler needs different settings than the library defaults (longer timeout, different worker count), inherit from `EventHandler<T>` instead of implementing `IEventHandler<T>` directly. The base class exposes `virtual` properties read once at startup when the subscription is wired up.
+
+```csharp
+public class LongRunningOrderHandler : EventHandler<OrderPlacedEvent>
+{
+    public override TimeSpan Timeout => TimeSpan.FromMinutes(10);
+    public override int WorkerCount => 2;
+    public override bool ContinueOnError => true;
+
+    private readonly IOrderProcessor _processor;
+
+    public LongRunningOrderHandler(IOrderProcessor processor)
+    {
+        _processor = processor;
+    }
+
+    protected override Task HandleAsync(OrderPlacedEvent data, CancellationToken cancellationToken)
+        => _processor.ProcessAsync(data, cancellationToken);
+}
+```
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `WorkerCount` | `10` | Parallel workers consuming the channel |
+| `Timeout` | `5 min` | Per-invocation execution limit (linked CTS) |
+| `ContinueOnError` | `true` | Whether to keep draining the channel after an exception |
+
+> **Source Generator** automatically detects classes inheriting from `EventHandler<T>` (they implement `IEventHandler<T>` transitively). No additional registration is required.
+
+> **Override priority:** explicit options passed to `AddEvent<H, E>(opts => ...)` win over `EventHandler<T>` properties, which in turn win over library defaults.
+
+### 3. Subscribe Manually (Alternative)
 
 ```csharp
 var eventManager = serviceProvider.GetRequiredService<IEventManager>();
@@ -208,14 +241,14 @@ eventManager.Subscribe<UserCreatedEvent>(async (data, cancellationToken) =>
 });
 ```
 
-### 3. Publish Events
+### 4. Publish Events
 
 ```csharp
 var eventProvider = serviceProvider.GetRequiredService<IEventProvider>();
 eventProvider.Publish(new UserCreatedEvent("John", "john@example.com"));
 ```
 
-### 3. Using Transactions
+### 5. Using Transactions
 
 Group events to be processed sequentially:
 
@@ -229,7 +262,7 @@ using (var transaction = eventProvider.CreateTransaction())
 // Events are processed after the transaction is disposed
 ```
 
-### 4. Awaiting Transaction Completion
+### 6. Awaiting Transaction Completion
 
 Wait for all events in a transaction to be processed:
 
@@ -547,7 +580,45 @@ services.AddScheduleServices();  // Source Generator auto-discovers IScheduleHan
 services.AddScheduleHandler<CleanupHandler, CleanupJobData>();
 ```
 
-### 3. Start Schedules
+### 3. Auto-Start at Application Startup
+
+For schedules that should run on a fixed cadence and start the moment the application boots (no manual `IScheduleProvider.Start(...)` call), use `AddSchedule<THandler>(opts => ...)` with a handler implementing the no-data `IScheduleHandler` interface. The library ships an `IHostedService` that wires every registration during `StartAsync`, so you do not need to write your own host class.
+
+```csharp
+public sealed class DailyRadarSchedule : IScheduleHandler
+{
+    private readonly IRadarBuilder _builder;
+
+    public DailyRadarSchedule(IRadarBuilder builder) => _builder = builder;
+
+    public Task HandleAsync(CancellationToken cancellationToken)
+        => _builder.BuildAsync(cancellationToken);
+}
+
+// Composition root - register once during startup
+if (configuration.GetValue<bool>("Content:Enabled"))
+{
+    services.AddSchedule<DailyRadarSchedule>(o =>
+    {
+        o.Name = "Content.DailyRadar";
+        o.Timeout = TimeSpan.FromMinutes(30);
+        o.Schedules =
+        [
+            Schedule.Now(),                                  // run once at startup
+            Schedule.EveryWeek(DayOfWeek.Tuesday, 6, 0),
+            Schedule.EveryWeek(DayOfWeek.Wednesday, 6, 0),
+            Schedule.EveryWeek(DayOfWeek.Thursday, 6, 0),
+            Schedule.EveryWeek(DayOfWeek.Friday, 6, 0),
+        ];
+    });
+}
+```
+
+The handler is registered as Scoped, so each invocation gets a fresh DI scope (safe for `DbContext`, scoped repositories, ambient transactions, etc.).
+
+> Use `IScheduleHandler<TData>` + `IScheduleProvider.Start(data, ...)` instead when each scheduled run needs a different payload (database row id, tenant id, etc.).
+
+### 4. Start Schedules
 
 ```csharp
 public class MyService
@@ -594,7 +665,7 @@ public class MyService
 }
 ```
 
-### 4. Managing Schedules
+### 5. Managing Schedules
 
 ```csharp
 // Pause/Resume
@@ -619,7 +690,7 @@ var all = _scheduleProvider.GetAllSchedules();
 var active = _scheduleProvider.GetActiveSchedules();
 ```
 
-### 5. Monitor State Changes
+### 6. Monitor State Changes
 
 ```csharp
 // Subscribe to all schedule changes
@@ -636,11 +707,11 @@ _scheduleProvider.OnChange(scheduleId, state =>
 });
 ```
 
-### 6. Schedule Factory Methods
+### 7. Schedule Factory Methods
 
 | Method | Description | Example |
 |--------|-------------|---------|
-| `Startup` | Startup program | `Schedule.Startup()` |
+| `Now` | Run once immediately | `Schedule.Now()` |
 | `EverySeconds(n)` | Every N seconds | `Schedule.EverySeconds(30)` |
 | `EveryMinutes(n)` | Every N minutes | `Schedule.EveryMinutes(5)` |
 | `EveryHours(n)` | Every N hours | `Schedule.EveryHours(2)` |
@@ -652,7 +723,7 @@ _scheduleProvider.OnChange(scheduleId, state =>
 | `EveryMonth(day, h, m)` | Monthly on day | `Schedule.EveryMonth(1, 0, 0)` |
 | `EveryYear(mo, d, h, m)` | Yearly on date | `Schedule.EveryYear(1, 1, 0, 0)` |
 
-### 7. ScheduleState Properties
+### 8. ScheduleState Properties
 
 | Property | Type | Description |
 |----------|------|-------------|

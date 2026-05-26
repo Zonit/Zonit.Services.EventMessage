@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Zonit.Messaging.Events.Hosting;
 
 /// <summary>
-/// Hosted service do automatycznej rejestracji handler體 event體 przy starcie aplikacji.
-/// Skanuje DI po IEventHandler&lt;T&gt; i automatycznie subskrybuje do odpowiednich event體.
+/// Hosted service do automatycznej rejestracji handler贸w event贸w przy starcie aplikacji.
+/// Skanuje DI po IEventHandler&lt;T&gt; i automatycznie subskrybuje do odpowiednich event贸w.
 /// </summary>
 public sealed class EventHandlerRegistrationHostedService : IHostedService
 {
@@ -48,7 +48,7 @@ public sealed class EventHandlerRegistrationHostedService : IHostedService
 }
 
 /// <summary>
-/// Abstrakcyjna rejestracja handlera event體.
+/// Abstrakcyjna rejestracja handlera event贸w.
 /// </summary>
 public abstract class EventHandlerRegistration
 {
@@ -57,15 +57,23 @@ public abstract class EventHandlerRegistration
 }
 
 /// <summary>
-/// Typowana rejestracja handlera event體.
+/// Typowana rejestracja handlera event贸w.
 /// </summary>
+/// <remarks>
+/// Priorytet opcji przy subskrypcji:
+/// <list type="number">
+///   <item>Opcje przekazane jawnie do <c>AddEvent&lt;THandler, TEvent&gt;(opts =&gt; ...)</c>.</item>
+///   <item>Properties z handlera dziedzicz膮cego po <see cref="EventHandler{TEvent}"/>.</item>
+///   <item>Domy艣lne warto艣ci <see cref="EventSubscriptionOptions"/>.</item>
+/// </list>
+/// </remarks>
 public sealed class EventHandlerRegistration<TEvent> : EventHandlerRegistration where TEvent : notnull
 {
-    private readonly EventSubscriptionOptions _options;
+    private readonly EventSubscriptionOptions? _options;
 
     public EventHandlerRegistration(EventSubscriptionOptions? options = null)
     {
-        _options = options ?? new EventSubscriptionOptions();
+        _options = options;
     }
 
     public override Type EventType => typeof(TEvent);
@@ -81,6 +89,32 @@ public sealed class EventHandlerRegistration<TEvent> : EventHandlerRegistration 
             {
                 await handler.HandleAsync(data, cancellationToken);
             }
-        }, _options);
+        }, GetOptionsFromHandler(serviceProvider));
+    }
+
+    private EventSubscriptionOptions GetOptionsFromHandler(IServiceProvider serviceProvider)
+    {
+        // 1. Explicit options passed to AddEvent take precedence
+        if (_options is not null)
+            return _options;
+
+        // 2. Try to read defaults from EventHandler<TEvent> base properties
+        using var scope = serviceProvider.CreateScope();
+        var handler = scope.ServiceProvider.GetService<IEventHandler<TEvent>>();
+
+        // Fully qualified to disambiguate from System.EventHandler<TEventArgs> delegate
+        // (implicit usings bring System into scope).
+        if (handler is Zonit.Messaging.Events.EventHandler<TEvent> typedHandler)
+        {
+            return new EventSubscriptionOptions
+            {
+                WorkerCount = typedHandler.WorkerCount,
+                Timeout = typedHandler.Timeout,
+                ContinueOnError = typedHandler.ContinueOnError
+            };
+        }
+
+        // 3. Fallback to library defaults
+        return new EventSubscriptionOptions();
     }
 }

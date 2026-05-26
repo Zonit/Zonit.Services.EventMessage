@@ -89,8 +89,8 @@ public sealed class ScheduleManager : IScheduleProvider, IDisposable
 
         _logger.LogInformation("Schedule '{Name}' ({Id}) started", name, id);
 
-        // Fire immediately if ExecuteOnStartup is set, or if any schedule is a Startup one-shot.
-        var runImmediately = options.ExecuteOnStartup || AnyStartup(options.Schedules);
+        // Fire immediately if ExecuteOnStartup is set, or if any schedule is a Now one-shot.
+        var runImmediately = options.ExecuteOnStartup || AnyNow(options.Schedules);
         if (runImmediately)
         {
             _ = Task.Run(() => entry.TriggerNow());
@@ -104,11 +104,11 @@ public sealed class ScheduleManager : IScheduleProvider, IDisposable
         return id;
     }
 
-    private static bool AnyStartup(Schedule[] schedules)
+    private static bool AnyNow(Schedule[] schedules)
     {
         for (var i = 0; i < schedules.Length; i++)
         {
-            if (schedules[i].IsStartup)
+            if (schedules[i].IsNow)
                 return true;
         }
         return false;

@@ -45,8 +45,8 @@ public static class ScheduleServiceCollectionExtensions
     /// // Run cleanup every 10 minutes
     /// services.AddSchedule&lt;CleanupHandler&gt;(Schedule.EveryMinutes(10));
     ///
-    /// // Run once at startup, then every Friday at 22:00 UTC
-    /// services.AddSchedule&lt;SyncHandler&gt;(Schedule.Startup(), Schedule.EveryWeek(DayOfWeek.Friday, 22));
+    /// // Run once immediately, then every Friday at 22:00 UTC
+    /// services.AddSchedule&lt;SyncHandler&gt;(Schedule.Now(), Schedule.EveryWeek(DayOfWeek.Friday, 22));
     /// </code>
     /// </example>
     public static IServiceCollection AddSchedule<THandler>(

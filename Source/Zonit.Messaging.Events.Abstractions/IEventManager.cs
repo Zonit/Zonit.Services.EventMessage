@@ -54,6 +54,13 @@ public interface IEventManager
 /// <summary>
 /// Opcje subskrypcji eventu.
 /// </summary>
+/// <remarks>
+/// Te opcje są stosowane gdy handler jest rejestrowany ręcznie przez <c>IEventManager.Subscribe(...)</c>
+/// lub przez <c>AddEvent&lt;THandler, TEvent&gt;(opts =&gt; ...)</c>. Gdy handler dziedziczy po
+/// <see cref="EventHandler{TEvent}"/>, jego properties (<c>WorkerCount</c>, <c>Timeout</c>,
+/// <c>ContinueOnError</c>) mają pierwszeństwo nad domyślnymi wartościami tej klasy, chyba że
+/// opcje zostały przekazane jawnie do <c>AddEvent</c>.
+/// </remarks>
 public sealed class EventSubscriptionOptions
 {
     /// <summary>
@@ -64,9 +71,14 @@ public sealed class EventSubscriptionOptions
 
     /// <summary>
     /// Maksymalny czas wykonania handlera.
-    /// Default: 30 sekund
+    /// Default: 5 minut.
     /// </summary>
-    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);
+    /// <remarks>
+    /// Bumped z 30s do 5 min, aby pasować do <c>TaskHandler</c> i <c>ScheduleOptions</c>.
+    /// Dla szybkich handlerów (np. notyfikacje UI) ustaw mniejszą wartość przez
+    /// <see cref="EventHandler{TEvent}.Timeout"/> override lub przez jawne opcje.
+    /// </remarks>
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Czy kontynuować przetwarzanie po błędzie.

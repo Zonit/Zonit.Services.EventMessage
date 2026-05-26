@@ -118,17 +118,17 @@ Schedule.EveryMonth(1, 0, 0)                  // 1st of each month at midnight
 Schedule.EveryMonth(15, 12, 0)                // 15th of each month at noon
 ```
 
-### Startup (one-shot)
+### Now (one-shot)
 
 Fire once, immediately after the schedule is registered and the application is up. Useful
 for initial data sync / warm-up. Combine with a recurring schedule to also keep running on
 a normal cadence.
 
 ```csharp
-Schedule.Startup()                            // Runs once at application startup
+Schedule.Now()                                // Runs once immediately
 ```
 
-> A schedule consisting solely of `Schedule.Startup()` has no next occurrence after its
+> A schedule consisting solely of `Schedule.Now()` has no next occurrence after its
 > first run and will not be rescheduled. Combine it with `Schedule.EveryDay(...)`,
 > `Schedule.EveryWeek(...)`, etc. to also get recurring executions.
 
@@ -275,9 +275,9 @@ services.AddSchedule<SyncHandler>(
     Schedule.EveryDay(18, 0)   // Evening sync
 );
 
-// Startup + recurring: run once on application start, then every Friday at 22:00
+// Now + recurring: run once immediately, then every Friday at 22:00
 services.AddSchedule<SyncHandler>(
-    Schedule.Startup(),
+    Schedule.Now(),
     Schedule.EveryWeek(DayOfWeek.Friday, 22)
 );
 ```
