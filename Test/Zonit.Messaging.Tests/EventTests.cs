@@ -79,4 +79,44 @@ public class EventTests
         await h.Recorder.WaitAsync("logger:99");
         h.Recorder.Log.Should().Contain("logger:99");
     }
+
+    [Fact]
+    public void EventSubscriptionOptions_are_settable_in_a_configure_callback()
+    {
+        // Regression (CS8852): the properties were init-only, so an Action<EventSubscriptionOptions>
+        // callback could not set anything; WorkerCount/Timeout/ContinueOnError/Capacity overrides
+        // passed to AddEvent(configure) were effectively unreachable.
+        var options = new EventSubscriptionOptions();
+        Action<EventSubscriptionOptions> configure = o =>
+        {
+            o.WorkerCount = 3;
+            o.Timeout = TimeSpan.FromSeconds(30);
+            o.ContinueOnError = false;
+            o.Capacity = 5;
+        };
+
+        configure(options);
+
+        options.WorkerCount.Should().Be(3);
+        options.Timeout.Should().Be(TimeSpan.FromSeconds(30));
+        options.ContinueOnError.Should().BeFalse();
+        options.Capacity.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task AddEvent_with_options_callback_compiles_and_delivers()
+    {
+        // End-to-end proof the configure overload is usable (it did not compile before init -> set).
+        await using var h = await TestHost.StartAsync(s =>
+            s.AddEvent<OrderLogger, OrderPlaced>(o =>
+            {
+                o.WorkerCount = 1;
+                o.Capacity = 8;
+            }));
+
+        h.Get<IEventProvider>().Publish(new OrderPlaced(123));
+
+        await h.Recorder.WaitAsync("logger:123");
+        h.Recorder.Log.Should().Contain("logger:123");
+    }
 }

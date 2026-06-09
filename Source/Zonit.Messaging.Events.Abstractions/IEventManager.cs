@@ -67,7 +67,7 @@ public sealed class EventSubscriptionOptions
     /// Liczba równoległych workerów przetwarzających eventy.
     /// Default: 10
     /// </summary>
-    public int WorkerCount { get; init; } = 10;
+    public int WorkerCount { get; set; } = 10;
 
     /// <summary>
     /// Maksymalny czas wykonania handlera.
@@ -78,13 +78,13 @@ public sealed class EventSubscriptionOptions
     /// Dla szybkich handlerów (np. notyfikacje UI) ustaw mniejszą wartość przez
     /// <see cref="IEventHandler{TEvent}.Timeout"/> property na handlerze lub przez jawne opcje.
     /// </remarks>
-    public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(5);
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Czy kontynuować przetwarzanie po błędzie.
     /// Default: true
     /// </summary>
-    public bool ContinueOnError { get; init; } = true;
+    public bool ContinueOnError { get; set; } = true;
 
     /// <summary>
     /// Maksymalna liczba zbuforowanych eventów tego typu. <c>null</c> = bez limitu (domyślnie).
@@ -92,5 +92,5 @@ public sealed class EventSubscriptionOptions
     /// limitu nadmiarowe eventy są odrzucane z ostrzeżeniem w logu (publikacja jest synchroniczna,
     /// więc nie blokuje wątku publikującego).
     /// </summary>
-    public int? Capacity { get; init; }
+    public int? Capacity { get; set; }
 }

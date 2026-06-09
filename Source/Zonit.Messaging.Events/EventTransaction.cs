@@ -89,8 +89,9 @@ public sealed class EventTransaction : IEventTransaction
 
             try
             {
-                // Czeka na zakończenie wszystkich handlerów przed przejściem do następnego eventu
-                await _eventManager.PublishAndWaitAsync(eventName, payload, cancellationToken);
+                // Czeka na zakończenie wszystkich handlerów przed przejściem do następnego eventu.
+                // ConfigureAwait(false): library code must not hop back onto a caller's sync context.
+                await _eventManager.PublishAndWaitAsync(eventName, payload, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -122,12 +123,13 @@ public sealed class EventTransaction : IEventTransaction
             completion = _completionTask;
         }
 
-        await completion.WaitAsync(cancellationToken);
+        await completion.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public void Dispose()
     {
         Task? toAwait = null;
+        (string EventName, object Payload)[]? batchToStart = null;
         lock (_gate)
         {
             if (_disposed) return;
@@ -137,24 +139,35 @@ public sealed class EventTransaction : IEventTransaction
             // commitu nie mają już dołączać do tej (kończonej) transakcji.
             EventManager.CurrentTransaction = _previousTransaction;
 
-            if (!_committed && _events.Count > 0)
-            {
-                _committed = true;
-                toAwait = _completionTask = ProcessEventsSequentiallyAsync([.. _events], CancellationToken.None);
-            }
-            else
+            if (_completionTask is not null)
             {
                 toAwait = _completionTask;
             }
+            else if (_events.Count > 0)
+            {
+                _committed = true;
+                batchToStart = [.. _events];
+            }
+        }
+
+        // Sync bridge: start the WHOLE pipeline (including user handler code) on the thread pool,
+        // where SynchronizationContext.Current is null. We are about to block the calling thread on
+        // GetResult(); if the handlers' awaits captured a caller-side context (Blazor Server circuit,
+        // WPF/WinForms UI thread) their continuations would post back to this blocked thread and
+        // deadlock. Task.Run roots the async method on a pool thread so no continuation targets us.
+        // (Re-wrapping an already-started _completionTask would NOT move its continuations, so the
+        // task must be *started* here, not merely awaited.) Prefer 'await using' to skip this block.
+        if (batchToStart is not null)
+        {
+            toAwait = Task.Run(() => ProcessEventsSequentiallyAsync(batchToStart, CancellationToken.None));
+            lock (_gate) _completionTask = toAwait;
         }
 
         if (toAwait is not null)
         {
             try
             {
-                // Sync bridge: offload to the thread pool to avoid sync-context deadlocks.
-                // Prefer 'await using' (DisposeAsync) in async code to skip this block entirely.
-                Task.Run(() => toAwait).GetAwaiter().GetResult();
+                toAwait.GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -188,7 +201,7 @@ public sealed class EventTransaction : IEventTransaction
         {
             try
             {
-                await toAwait;
+                await toAwait.ConfigureAwait(false);
             }
             catch (Exception ex)
             {

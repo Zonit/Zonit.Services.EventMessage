@@ -97,7 +97,7 @@ public sealed class EventManager : IEventManager, IDisposable
         {
             try
             {
-                await subscription.ExecuteAsync(payload, cancellationToken);
+                await subscription.ExecuteAsync(payload, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -247,7 +247,7 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
         {
             if (_options.Timeout == Timeout.InfiniteTimeSpan)
             {
-                await _handler(typedPayload, cancellationToken);
+                await _handler(typedPayload, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -256,7 +256,7 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
                     timeoutCts.Token,
                     cancellationToken);
 
-                await _handler(typedPayload, linkedCts.Token);
+                await _handler(typedPayload, linkedCts.Token).ConfigureAwait(false);
             }
         }
         else

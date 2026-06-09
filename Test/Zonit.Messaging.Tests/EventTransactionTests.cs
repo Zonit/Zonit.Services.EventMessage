@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Zonit.Messaging.Events;
@@ -13,6 +14,20 @@ public sealed class TxHandler(Recorder r) : IEventHandler<TxEvent>
     {
         r.Log.Enqueue($"tx:{data.Seq}");
         return Task.CompletedTask;
+    }
+}
+
+public sealed record TxAsyncEvent(int Seq);
+
+// Handler that actually awaits: the await captures the ambient SynchronizationContext, which is
+// what triggers the synchronous-Dispose deadlock regression.
+public sealed class TxAsyncHandler(Recorder r) : IEventHandler<TxAsyncEvent>
+{
+    public int WorkerCount => 1;
+    public async Task HandleAsync(TxAsyncEvent data, CancellationToken ct)
+    {
+        await Task.Delay(50, ct);
+        r.Log.Enqueue($"async:{data.Seq}");
     }
 }
 
@@ -92,4 +107,72 @@ public class EventTransactionTests
 
         await tx.DisposeAsync();
     }
+
+    [Fact]
+    public async Task Sync_dispose_does_not_deadlock_under_synchronization_context()
+    {
+        // Regression: synchronous 'using (tx)' Dispose auto-commits and blocks the calling thread.
+        // If that thread carries a SynchronizationContext (Blazor Server circuit, WPF/WinForms UI
+        // thread), a handler that awaits would post its continuation back to the now-blocked thread
+        // and deadlock. The fix starts the whole pipeline on the thread pool (no captured context).
+        await using var h = await TestHost.StartAsync(s => s.AddEventHandlers());
+        var events = h.Get<IEventProvider>();
+
+        using var ctx = new SingleThreadSyncContext();
+
+        // Execute the synchronous using-block ON the single-threaded context.
+        var work = ctx.Run(() =>
+        {
+            using (events.CreateTransaction())
+            {
+                events.Publish(new TxAsyncEvent(7));
+            } // <-- synchronous Dispose: commits, then blocks this single thread until handlers finish
+        });
+
+        var completed = await Task.WhenAny(work, Task.Delay(8000));
+        completed.Should().BeSameAs(work,
+            "synchronous transaction Dispose must not deadlock when a SynchronizationContext is present");
+        await work; // surface any handler exception
+
+        h.Recorder.Log.Should().Contain("async:7");
+    }
+}
+
+/// <summary>
+/// Minimal single-threaded SynchronizationContext (one pump thread) used to reproduce
+/// sync-over-async deadlocks the way a Blazor Server circuit or a UI thread would.
+/// </summary>
+internal sealed class SingleThreadSyncContext : SynchronizationContext, IDisposable
+{
+    private readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> _queue = new();
+    private readonly Thread _thread;
+
+    public SingleThreadSyncContext()
+    {
+        _thread = new Thread(Pump) { IsBackground = true, Name = "single-thread-synccontext" };
+        _thread.Start();
+    }
+
+    public override void Post(SendOrPostCallback d, object? state) => _queue.Add((d, state));
+
+    /// <summary>Posts an action onto the context thread; the returned task completes when it finishes.</summary>
+    public Task Run(Action action)
+    {
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Post(_ =>
+        {
+            try { action(); tcs.SetResult(); }
+            catch (Exception ex) { tcs.SetException(ex); }
+        }, null);
+        return tcs.Task;
+    }
+
+    private void Pump()
+    {
+        SetSynchronizationContext(this);
+        foreach (var (callback, state) in _queue.GetConsumingEnumerable())
+            callback(state);
+    }
+
+    public void Dispose() => _queue.CompleteAdding();
 }
