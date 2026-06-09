@@ -1,0 +1,304 @@
+<Project>
+
+  <!--
+    ============================================================================
+    Zonit.Messaging AI context installer  (standalone)
+    ============================================================================
+    SINGLE SOURCE, COMPILED PER EDITOR. The authored docs live in the repo's
+    Instruction/ folder and are packed into each package under
+    Instruction/messaging/*.md (what this file reads). At consumer build time this
+    "compiles" them into each detected editor's native format:
+
+        .zonit/messaging/*.md                copied as-is (neutral, human/agent readable)
+        .zonit/index.md                      generated map (anchored block)
+        .cursor/rules/zonit-messaging*.mdc   generated: frontmatter (globs) + doc content
+        .github/instructions/zonit-messaging*.md   generated: frontmatter (applyTo) + doc content
+        .github/copilot-instructions.md      generated umbrella (anchored block)
+        CLAUDE.md                            generated umbrella (anchored block)
+
+    REPO-ROOT ANCHORED. Detection and output are anchored at the workspace root
+    (nearest ancestor with .git / a solution / an editor folder), not at the
+    building project's directory. Override with <ZonitMsgInstructionsAnchor>.
+
+    NO SPAM: a given editor's files are produced ONLY if that editor is detected
+    at the root (or forced via <ZonitMsgEditors>). No editor detected -> nothing.
+    Several Zonit.Messaging.* packages ship this same installer; it is idempotent,
+    so installing more than one produces the same files once.
+
+    Knobs:
+      <ZonitMsgEditors>auto|all|none|cursor;claude</ZonitMsgEditors>   (default auto)
+      <ZonitMsgInstructions>false</ZonitMsgInstructions>               master off switch
+      <ZonitMsgInstructionsRoot>.zonit</ZonitMsgInstructionsRoot>      relocate the tree (under the root)
+      <ZonitMsgInstructionsAnchor>path</ZonitMsgInstructionsAnchor>    force the workspace root explicitly
+    Safety: skipped on CI (ContinuousIntegrationBuild=true). Generated files are
+    rewritten only when content changes; umbrella blocks live between the
+    ZONIT:messaging START / END markers and never touch anything outside them.
+
+    Ships in buildTransitive/ so it fires even when a package arrives transitively.
+    ============================================================================
+  -->
+
+  <!-- Import-once guard: several Zonit.Messaging.* packages each ship this identical installer
+       (named per package so it auto-imports). Only the first import defines anything. -->
+  <PropertyGroup>
+    <_ZonitMsgPriorImport>$(_ZonitMsgInstallerSeen)</_ZonitMsgPriorImport>
+    <_ZonitMsgInstallerSeen>true</_ZonitMsgInstallerSeen>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ZonitMsgPriorImport)' != 'true'">
+    <ZonitMsgInstructions Condition="'$(ZonitMsgInstructions)' == ''">true</ZonitMsgInstructions>
+    <ZonitMsgInstructionsRoot Condition="'$(ZonitMsgInstructionsRoot)' == ''">.zonit</ZonitMsgInstructionsRoot>
+    <ZonitMsgEditors Condition="'$(ZonitMsgEditors)' == ''">auto</ZonitMsgEditors>
+    <_ZonitMsgContentRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..', 'Instruction'))</_ZonitMsgContentRoot>
+    <_ZonitMsgDocsDir>$([System.IO.Path]::Combine('$(_ZonitMsgContentRoot)', 'messaging'))</_ZonitMsgDocsDir>
+  </PropertyGroup>
+
+  <!-- The single-source doc map: base name + optional file-pattern Glob + one-line Summary.
+       Order here is the order shown in the generated index/umbrella. -->
+  <ItemGroup Condition="'$(_ZonitMsgPriorImport)' != 'true'">
+    <ZonitMsgDoc Include="usage">         <Summary>Install, register with AddXxxHandlers(), source-generated auto-discovery.</Summary></ZonitMsgDoc>
+    <ZonitMsgDoc Include="events">        <Glob>**/*EventHandler.cs</Glob><Summary>Pub/Sub: IEventHandler&lt;T&gt;, per-handler options, publishing, transactions.</Summary></ZonitMsgDoc>
+    <ZonitMsgDoc Include="commands">      <Glob>**/*CommandHandler.cs</Glob><Summary>CQRS: IRequest&lt;T&gt;, IRequestHandler&lt;,&gt;, SendAsync.</Summary></ZonitMsgDoc>
+    <ZonitMsgDoc Include="tasks">         <Glob>**/*TaskHandler.cs</Glob><Summary>Background jobs: TaskHandler&lt;T&gt;, progress, monitoring, retries.</Summary></ZonitMsgDoc>
+    <ZonitMsgDoc Include="schedules">     <Glob>**/*ScheduleHandler.cs</Glob><Summary>Recurring jobs: IScheduleHandler, the Schedule factory, auto-start.</Summary></ZonitMsgDoc>
+    <ZonitMsgDoc Include="configuration"> <Summary>DI lifetimes, workers, timeouts, bounded channels, AOT/trimming.</Summary></ZonitMsgDoc>
+    <ZonitMsgDoc Include="transport">     <Summary>Cross-service events over a broker (planned — design only).</Summary></ZonitMsgDoc>
+  </ItemGroup>
+
+  <!-- Resolve the workspace root by walking up to the nearest .git / solution / editor folder. -->
+  <UsingTask TaskName="ZonitMsgFindRoot" TaskFactory="RoslynCodeTaskFactory"
+             Condition="'$(_ZonitMsgPriorImport)' != 'true'"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <StartDir ParameterType="System.String" Required="true" />
+      <Root ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        string Combine(string a, string b) { return System.IO.Path.Combine(a, b); }
+        var dir = new System.IO.DirectoryInfo(StartDir);
+        string repoRoot = null, editorRoot = null;
+        while (dir != null)
+        {
+            string p = dir.FullName;
+            try
+            {
+                if (repoRoot == null &&
+                    (System.IO.Directory.Exists(Combine(p, ".git"))
+                  || System.IO.File.Exists(Combine(p, ".git"))
+                  || System.IO.Directory.GetFiles(p, "*.sln").Length > 0
+                  || System.IO.Directory.GetFiles(p, "*.slnx").Length > 0))
+                    repoRoot = p;
+
+                if (editorRoot == null &&
+                    (System.IO.Directory.Exists(Combine(p, ".claude"))
+                  || System.IO.Directory.Exists(Combine(p, ".cursor"))
+                  || System.IO.Directory.Exists(Combine(p, ".vscode"))
+                  || System.IO.Directory.Exists(Combine(p, ".github"))
+                  || System.IO.File.Exists(Combine(p, "CLAUDE.md"))))
+                    editorRoot = p;
+            }
+            catch { /* unreadable ancestor: keep walking */ }
+
+            if (repoRoot != null) break;
+            dir = dir.Parent;
+        }
+        Root = repoRoot ?? editorRoot ?? StartDir;
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!-- The "compiler": projects the single-source docs into one editor's native files. -->
+  <UsingTask TaskName="ZonitMsgEmit" TaskFactory="RoslynCodeTaskFactory"
+             Condition="'$(_ZonitMsgPriorImport)' != 'true'"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Editor ParameterType="System.String" Required="true" />
+      <Docs ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <DocsDir ParameterType="System.String" Required="true" />
+      <ProjectRoot ParameterType="System.String" Required="true" />
+      <Root ParameterType="System.String" Required="true" />
+      <Changed ParameterType="System.Boolean" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        Changed = false;
+        const string NL = "\n";
+        const string BEGIN = "<!-- ZONIT:messaging START -->";
+        const string END = "<!-- ZONIT:messaging END -->";
+
+        bool WriteIfChanged(string path, string text)
+        {
+            string ex = System.IO.File.Exists(path) ? System.IO.File.ReadAllText(path) : null;
+            if (string.Equals(ex, text, System.StringComparison.Ordinal)) return false;
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+            System.IO.File.WriteAllText(path, text);
+            return true;
+        }
+
+        bool Inject(string file, string content, string header)
+        {
+            string block = BEGIN + NL + content.Trim() + NL + END;
+            string ex = System.IO.File.Exists(file) ? System.IO.File.ReadAllText(file) : null;
+            string res;
+            if (ex == null)
+                res = (string.IsNullOrEmpty(header) ? "" : header.Trim() + NL + NL) + block + NL;
+            else
+            {
+                int b = ex.IndexOf(BEGIN, System.StringComparison.Ordinal);
+                int e = ex.IndexOf(END, System.StringComparison.Ordinal);
+                res = (b >= 0 && e > b)
+                    ? ex.Substring(0, b) + block + ex.Substring(e + END.Length)
+                    : ex.TrimEnd() + NL + NL + block + NL;
+            }
+            return WriteIfChanged(file, res);
+        }
+
+        // Always-on umbrella text (short, generated from the doc map).
+        var sb = new System.Text.StringBuilder();
+        sb.Append("## Zonit.Messaging (in-process messaging)" + NL + NL);
+        sb.Append("For in-process **Commands** (CQRS), **Events** (pub/sub), **Tasks** (background jobs) and " +
+                  "**Schedules** (recurring jobs), use Zonit.Messaging. Handlers are auto-discovered at compile " +
+                  "time by a source generator — implement the interface and call the matching `AddXxxHandlers()`; " +
+                  "never scan assemblies or use reflection (it is Native-AOT safe). Send via `ICommandProvider`, " +
+                  "`IEventProvider`, `ITaskProvider`, `IScheduleProvider`. Guides:" + NL + NL);
+        foreach (var d in Docs)
+            sb.Append("- `" + Root + "/messaging/" + d.ItemSpec + ".md`: " + d.GetMetadata("Summary") + NL);
+        sb.Append(NL + "Cross-process delivery does not exist yet — `Publish` is in-process only. See `" +
+                  Root + "/messaging/transport.md` before assuming any distributed behaviour.");
+        string umbrella = sb.ToString().Trim();
+
+        bool ch = false;
+        if (Editor == "index")
+        {
+            ch = Inject(System.IO.Path.Combine(ProjectRoot, Root, "index.md"), umbrella,
+                "# Zonit AI assistant instructions (map)" + NL + NL +
+                "> Auto-managed by Zonit packages; each library owns one anchored block.");
+        }
+        else if (Editor == "cursor")
+        {
+            string dir = System.IO.Path.Combine(ProjectRoot, ".cursor", "rules");
+            ch |= WriteIfChanged(System.IO.Path.Combine(dir, "zonit-messaging.mdc"),
+                "---" + NL + "description: Zonit.Messaging: in-process Commands/Events/Tasks/Schedules; implement the handler interface and call AddXxxHandlers()" +
+                NL + "alwaysApply: true" + NL + "---" + NL + NL + umbrella + NL);
+            foreach (var d in Docs)
+            {
+                string glob = d.GetMetadata("Glob");
+                if (string.IsNullOrEmpty(glob)) continue;
+                string body = System.IO.File.ReadAllText(System.IO.Path.Combine(DocsDir, d.ItemSpec + ".md"));
+                string front = "---" + NL + "description: " + d.GetMetadata("Summary") + NL +
+                               "globs: " + glob + NL + "alwaysApply: false" + NL + "---" + NL + NL;
+                ch |= WriteIfChanged(System.IO.Path.Combine(dir, "zonit-messaging-" + d.ItemSpec + ".mdc"), front + body);
+            }
+        }
+        else if (Editor == "copilot")
+        {
+            ch |= Inject(System.IO.Path.Combine(ProjectRoot, ".github", "copilot-instructions.md"), umbrella, "# Copilot instructions");
+            string dir = System.IO.Path.Combine(ProjectRoot, ".github", "instructions");
+            foreach (var d in Docs)
+            {
+                string glob = d.GetMetadata("Glob");
+                if (string.IsNullOrEmpty(glob)) continue;
+                string body = System.IO.File.ReadAllText(System.IO.Path.Combine(DocsDir, d.ItemSpec + ".md"));
+                string front = "---" + NL + "applyTo: \"" + glob + "\"" + NL + "---" + NL + NL;
+                ch |= WriteIfChanged(System.IO.Path.Combine(dir, "zonit-messaging-" + d.ItemSpec + ".instructions.md"), front + body);
+            }
+        }
+        else if (Editor == "claude")
+        {
+            string skillDesc =
+                "Use when doing in-process messaging in this .NET repo with Zonit.Messaging. "
+              + "Covers Commands (CQRS request/response), Events (pub/sub fan-out), Tasks (background jobs "
+              + "with progress/retries) and Schedules (recurring jobs); writing a handler (IRequestHandler, "
+              + "IEventHandler, TaskHandler, IScheduleHandler), registering with AddCommandHandlers/"
+              + "AddEventHandlers/AddTaskHandlers/AddScheduleHandlers, and sending via ICommandProvider/"
+              + "IEventProvider/ITaskProvider/IScheduleProvider.";
+            string skill =
+                "---" + NL + "name: zonit-messaging" + NL + "description: \"" + skillDesc + "\"" + NL + "---" + NL + NL
+              + umbrella + NL;
+            ch |= WriteIfChanged(
+                System.IO.Path.Combine(ProjectRoot, ".claude", "skills", "zonit-messaging", "SKILL.md"), skill);
+
+            string pointer =
+                "## Zonit.Messaging (messaging)" + NL + NL
+              + "This repo uses **Zonit.Messaging** for in-process Commands (CQRS), Events (pub/sub), "
+              + "Tasks (background jobs) and Schedules (recurring jobs). Implement the handler interface "
+              + "(`IRequestHandler`, `IEventHandler`, `TaskHandler<T>`, `IScheduleHandler`) and register "
+              + "with the matching `AddXxxHandlers()` — handlers are source-generated and AOT-safe, so do "
+              + "not scan assemblies or use reflection. Use the **`zonit-messaging`** skill and the guides "
+              + "under `" + Root + "/messaging/`.";
+            ch |= Inject(System.IO.Path.Combine(ProjectRoot, "CLAUDE.md"), pointer,
+                "# CLAUDE.md" + NL + NL + "Guidance for Claude Code in this repository.");
+        }
+        Changed = ch;
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="ZonitMsgInstallInstructions"
+          AfterTargets="Build"
+          Condition="'$(_ZonitMsgPriorImport)' != 'true'
+                     and '$(ZonitMsgInstructions)' != 'false'
+                     and '$(ZonitMsgEditors)' != 'none'
+                     and '$(ContinuousIntegrationBuild)' != 'true'
+                     and Exists('$(_ZonitMsgDocsDir)')">
+
+    <!-- 1. Resolve the workspace root (explicit anchor, else upward search). -->
+    <ZonitMsgFindRoot Condition="'$(ZonitMsgInstructionsAnchor)' == ''" StartDir="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="Root" PropertyName="_ZonitMsgRoot" />
+    </ZonitMsgFindRoot>
+    <PropertyGroup>
+      <_ZonitMsgRoot Condition="'$(ZonitMsgInstructionsAnchor)' != ''">$(ZonitMsgInstructionsAnchor)</_ZonitMsgRoot>
+      <_ZonitMsgRoot>$([MSBuild]::EnsureTrailingSlash('$(_ZonitMsgRoot)'))</_ZonitMsgRoot>
+    </PropertyGroup>
+
+    <!-- 2. Detect editors at that root. -->
+    <PropertyGroup>
+      <_ZonitMsgClaude>false</_ZonitMsgClaude>
+      <_ZonitMsgClaude Condition="'$(ZonitMsgEditors)' == 'all'
+          or ('$(ZonitMsgEditors)' == 'auto' and (Exists('$(_ZonitMsgRoot).claude') or Exists('$(_ZonitMsgRoot)CLAUDE.md')))
+          or $(ZonitMsgEditors.Contains('claude'))">true</_ZonitMsgClaude>
+
+      <_ZonitMsgCursor>false</_ZonitMsgCursor>
+      <_ZonitMsgCursor Condition="'$(ZonitMsgEditors)' == 'all'
+          or ('$(ZonitMsgEditors)' == 'auto' and Exists('$(_ZonitMsgRoot).cursor'))
+          or $(ZonitMsgEditors.Contains('cursor'))">true</_ZonitMsgCursor>
+
+      <_ZonitMsgCopilot>false</_ZonitMsgCopilot>
+      <_ZonitMsgCopilot Condition="'$(ZonitMsgEditors)' == 'all'
+          or ('$(ZonitMsgEditors)' == 'auto' and (Exists('$(_ZonitMsgRoot).vscode') or Exists('$(_ZonitMsgRoot).github\copilot-instructions.md') or Exists('$(_ZonitMsgRoot).github\instructions')))
+          or $(ZonitMsgEditors.Contains('copilot'))">true</_ZonitMsgCopilot>
+
+      <_ZonitMsgAnyEditor>false</_ZonitMsgAnyEditor>
+      <_ZonitMsgAnyEditor Condition="'$(_ZonitMsgClaude)' == 'true' or '$(_ZonitMsgCursor)' == 'true' or '$(_ZonitMsgCopilot)' == 'true'">true</_ZonitMsgAnyEditor>
+    </PropertyGroup>
+
+    <!-- Materialize the single source tree (neutral, readable by humans + Claude). -->
+    <ItemGroup Condition="'$(_ZonitMsgAnyEditor)' == 'true'">
+      <_ZonitMsgTreeFile Include="$(_ZonitMsgContentRoot)**\*" />
+    </ItemGroup>
+    <Copy Condition="'$(_ZonitMsgAnyEditor)' == 'true'"
+          SourceFiles="@(_ZonitMsgTreeFile)"
+          DestinationFiles="@(_ZonitMsgTreeFile->'$(_ZonitMsgRoot)$(ZonitMsgInstructionsRoot)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" />
+
+    <!-- Compile the docs into each surface (index always; editors only when detected). -->
+    <ZonitMsgEmit Condition="'$(_ZonitMsgAnyEditor)' == 'true'" Editor="index" Docs="@(ZonitMsgDoc)" DocsDir="$(_ZonitMsgDocsDir)" ProjectRoot="$(_ZonitMsgRoot)" Root="$(ZonitMsgInstructionsRoot)">
+      <Output TaskParameter="Changed" PropertyName="_ZonitMsgChIndex" />
+    </ZonitMsgEmit>
+    <ZonitMsgEmit Condition="'$(_ZonitMsgCursor)' == 'true'" Editor="cursor" Docs="@(ZonitMsgDoc)" DocsDir="$(_ZonitMsgDocsDir)" ProjectRoot="$(_ZonitMsgRoot)" Root="$(ZonitMsgInstructionsRoot)">
+      <Output TaskParameter="Changed" PropertyName="_ZonitMsgChCursor" />
+    </ZonitMsgEmit>
+    <ZonitMsgEmit Condition="'$(_ZonitMsgCopilot)' == 'true'" Editor="copilot" Docs="@(ZonitMsgDoc)" DocsDir="$(_ZonitMsgDocsDir)" ProjectRoot="$(_ZonitMsgRoot)" Root="$(ZonitMsgInstructionsRoot)">
+      <Output TaskParameter="Changed" PropertyName="_ZonitMsgChCopilot" />
+    </ZonitMsgEmit>
+    <ZonitMsgEmit Condition="'$(_ZonitMsgClaude)' == 'true'" Editor="claude" Docs="@(ZonitMsgDoc)" DocsDir="$(_ZonitMsgDocsDir)" ProjectRoot="$(_ZonitMsgRoot)" Root="$(ZonitMsgInstructionsRoot)">
+      <Output TaskParameter="Changed" PropertyName="_ZonitMsgChClaude" />
+    </ZonitMsgEmit>
+
+    <Message Importance="high"
+             Condition="'$(_ZonitMsgChIndex)' == 'true' or '$(_ZonitMsgChCursor)' == 'true' or '$(_ZonitMsgChCopilot)' == 'true' or '$(_ZonitMsgChClaude)' == 'true'"
+             Text="Zonit.Messaging: compiled AI instructions to '$(_ZonitMsgRoot)$(ZonitMsgInstructionsRoot)/' for detected editors (Claude=$(_ZonitMsgClaude), Cursor=$(_ZonitMsgCursor), Copilot=$(_ZonitMsgCopilot)). Override root with &lt;ZonitMsgInstructionsAnchor&gt; / editors with &lt;ZonitMsgEditors&gt; / disable with &lt;ZonitMsgInstructions&gt;false&lt;/ZonitMsgInstructions&gt;." />
+  </Target>
+
+</Project>

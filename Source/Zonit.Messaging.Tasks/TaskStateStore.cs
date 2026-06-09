@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
 namespace Zonit.Messaging.Tasks;
 
@@ -12,6 +13,9 @@ internal sealed class TaskStateStore
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Action<TaskState>>> _extensionSubscribers = new();
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, Action<TaskState>>> _typeSubscribers = new();
     private readonly ConcurrentDictionary<(string, Guid), ConcurrentDictionary<Guid, Action<TaskState>>> _typeExtensionSubscribers = new();
+    private readonly ILogger _logger;
+
+    public TaskStateStore(ILogger logger) => _logger = logger;
 
     /// <summary>
     /// Tworzy nowy stan zadania.
@@ -158,7 +162,7 @@ internal sealed class TaskStateStore
     /// </summary>
     public TaskState? GetTaskState(Guid taskId)
     {
-        return _tasks.TryGetValue(taskId, out var state) ? state : null;
+        return _tasks.TryGetValue(taskId, out var state) ? state.Snapshot() : null;
     }
 
     /// <summary>
@@ -171,6 +175,7 @@ internal sealed class TaskStateStore
         return _tasks.Values
             .Where(s => activeStatuses.Contains(s.Status))
             .Where(s => !extensionId.HasValue || s.ExtensionId == extensionId)
+            .Select(s => s.Snapshot())
             .ToList()
             .AsReadOnly();
     }
@@ -206,6 +211,7 @@ internal sealed class TaskStateStore
             .Where(s => activeStatuses.Contains(s.Status))
             .Where(s => typeNames.Contains(s.TaskType))
             .Where(s => !extensionId.HasValue || s.ExtensionId == extensionId)
+            .Select(s => s.Snapshot())
             .ToList()
             .AsReadOnly();
     }
@@ -327,67 +333,49 @@ internal sealed class TaskStateStore
 
     private void NotifySubscribers(TaskState state)
     {
+        // Hand subscribers an immutable snapshot, not the live object that workers keep mutating.
+        var snapshot = state.Snapshot();
+
         // Global subscribers
         foreach (var handler in _globalSubscribers.Values)
-        {
-            try
-            {
-                handler(state);
-            }
-            catch
-            {
-                // Ignore subscriber exceptions
-            }
-        }
+            Invoke(handler, snapshot);
 
         // Extension-specific subscribers
-        if (state.ExtensionId.HasValue &&
-            _extensionSubscribers.TryGetValue(state.ExtensionId.Value, out var extensionSubs))
+        if (snapshot.ExtensionId.HasValue &&
+            _extensionSubscribers.TryGetValue(snapshot.ExtensionId.Value, out var extensionSubs))
         {
             foreach (var handler in extensionSubs.Values)
-            {
-                try
-                {
-                    handler(state);
-                }
-                catch
-                {
-                    // Ignore subscriber exceptions
-                }
-            }
+                Invoke(handler, snapshot);
         }
 
         // Type-specific subscribers
-        if (_typeSubscribers.TryGetValue(state.TaskType, out var typeSubs))
+        if (_typeSubscribers.TryGetValue(snapshot.TaskType, out var typeSubs))
         {
             foreach (var handler in typeSubs.Values)
-            {
-                try
-                {
-                    handler(state);
-                }
-                catch
-                {
-                    // Ignore subscriber exceptions
-                }
-            }
+                Invoke(handler, snapshot);
         }
 
         // Type + Extension specific subscribers
-        if (state.ExtensionId.HasValue &&
-            _typeExtensionSubscribers.TryGetValue((state.TaskType, state.ExtensionId.Value), out var typeExtSubs))
+        if (snapshot.ExtensionId.HasValue &&
+            _typeExtensionSubscribers.TryGetValue((snapshot.TaskType, snapshot.ExtensionId.Value), out var typeExtSubs))
         {
             foreach (var handler in typeExtSubs.Values)
-            {
-                try
-                {
-                    handler(state);
-                }
-                catch
-                {
-                    // Ignore subscriber exceptions
-                }
-            }
+                Invoke(handler, snapshot);
+        }
+    }
+
+    private void Invoke(Action<TaskState> handler, TaskState snapshot)
+    {
+        try
+        {
+            handler(snapshot);
+        }
+        catch (Exception ex)
+        {
+            // A faulty subscriber must not break task processing, but the failure is logged
+            // (previously swallowed silently).
+            _logger.LogError(ex, "Task state subscriber threw for task '{TaskType}' ({TaskId})",
+                snapshot.TaskType, snapshot.TaskId);
         }
     }
 

@@ -1,7 +1,7 @@
 namespace Zonit.Messaging.Tasks;
 
 /// <summary>
-/// Reprezentuje bie¿¹cy stan zadania.
+/// Reprezentuje bieï¿½ï¿½cy stan zadania.
 /// </summary>
 public class TaskState
 {
@@ -11,8 +11,13 @@ public class TaskState
     public required Guid TaskId { get; init; }
 
     /// <summary>
-    /// Identyfikator rozszerzenia/modu³u który wys³a³ zadanie.
+    /// Identyfikator rozszerzenia/moduï¿½u ktï¿½ry wysï¿½aï¿½ zadanie.
     /// </summary>
+    /// <remarks>
+    /// To klucz korelacyjny do filtrowania (np. po organizacji), a <b>nie</b> granica bezpieczeï¿½stwa.
+    /// <c>GetActiveTasks(null)</c> oraz globalny <c>OnChange</c> widzï¿½ stany wszystkich zadaï¿½;
+    /// autoryzacjï¿½ dostï¿½pu wymuï¿½ w warstwie wyï¿½ej.
+    /// </remarks>
     public Guid? ExtensionId { get; init; }
 
     /// <summary>
@@ -21,13 +26,13 @@ public class TaskState
     public required string TaskType { get; init; }
 
     /// <summary>
-    /// Tytu³ zadania wyœwietlany w interfejsie u¿ytkownika.
-    /// Null = u¿ywana bêdzie nazwa typu zadania.
+    /// Tytuï¿½ zadania wyï¿½wietlany w interfejsie uï¿½ytkownika.
+    /// Null = uï¿½ywana bï¿½dzie nazwa typu zadania.
     /// </summary>
     public string? Title { get; init; }
 
     /// <summary>
-    /// Opis zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Opis zadania wyï¿½wietlany w interfejsie uï¿½ytkownika.
     /// Null = brak opisu.
     /// </summary>
     public string? Description { get; init; }
@@ -38,22 +43,22 @@ public class TaskState
     public TaskStatus Status { get; set; } = TaskStatus.Pending;
 
     /// <summary>
-    /// Postêp 0-100. Null = brak œledzenia postêpu.
+    /// Postï¿½p 0-100. Null = brak ï¿½ledzenia postï¿½pu.
     /// </summary>
     public int? Progress { get; set; }
 
     /// <summary>
-    /// Aktualny numer kroku (1-based). Null = brak œledzenia kroków.
+    /// Aktualny numer kroku (1-based). Null = brak ï¿½ledzenia krokï¿½w.
     /// </summary>
     public int? CurrentStep { get; set; }
 
     /// <summary>
-    /// Ca³kowita liczba kroków. Null = brak œledzenia kroków.
+    /// Caï¿½kowita liczba krokï¿½w. Null = brak ï¿½ledzenia krokï¿½w.
     /// </summary>
     public int? TotalSteps { get; set; }
 
     /// <summary>
-    /// Opcjonalny komunikat opisuj¹cy aktualny stan.
+    /// Opcjonalny komunikat opisujï¿½cy aktualny stan.
     /// </summary>
     public string? Message { get; set; }
 
@@ -63,32 +68,54 @@ public class TaskState
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>
-    /// Data rozpoczêcia przetwarzania.
+    /// Data rozpoczï¿½cia przetwarzania.
     /// </summary>
     public DateTimeOffset? StartedAt { get; set; }
 
     /// <summary>
-    /// Data zakoñczenia.
+    /// Data zakoï¿½czenia.
     /// </summary>
     public DateTimeOffset? CompletedAt { get; set; }
 
     /// <summary>
-    /// Czas trwania zadania od momentu rozpoczêcia.
-    /// Null jeœli zadanie jeszcze siê nie rozpoczê³o.
+    /// Czas trwania zadania od momentu rozpoczï¿½cia.
+    /// Null jeï¿½li zadanie jeszcze siï¿½ nie rozpoczï¿½o.
     /// </summary>
     public TimeSpan? Duration => StartedAt.HasValue 
         ? (CompletedAt ?? DateTimeOffset.UtcNow) - StartedAt.Value 
         : null;
 
     /// <summary>
-    /// Oryginalne dane zadania (do u¿ycia w generycznym OnChange).
+    /// Oryginalne dane zadania (do uï¿½ycia w generycznym OnChange).
     /// </summary>
     internal object? TaskData { get; set; }
+
+    /// <summary>
+    /// Tworzy niezmiennï¿½ kopiï¿½ bieï¿½ï¿½cego stanu. Uï¿½ywane przy powiadamianiu subskrybentï¿½w,
+    /// aby nie wydawaï¿½ na zewnï¿½trz ï¿½ywego, mutowanego obiektu (unika rozjechanych odczytï¿½w).
+    /// </summary>
+    internal TaskState Snapshot() => new()
+    {
+        TaskId = TaskId,
+        ExtensionId = ExtensionId,
+        TaskType = TaskType,
+        Title = Title,
+        Description = Description,
+        Status = Status,
+        Progress = Progress,
+        CurrentStep = CurrentStep,
+        TotalSteps = TotalSteps,
+        Message = Message,
+        CreatedAt = CreatedAt,
+        StartedAt = StartedAt,
+        CompletedAt = CompletedAt,
+        TaskData = TaskData
+    };
 }
 
 /// <summary>
-/// Reprezentuje bie¿¹cy stan zadania z typowanymi danymi.
-/// U¿ywane w generycznym OnChange&lt;T&gt; do dostêpu do danych zadania.
+/// Reprezentuje bieï¿½ï¿½cy stan zadania z typowanymi danymi.
+/// Uï¿½ywane w generycznym OnChange&lt;T&gt; do dostï¿½pu do danych zadania.
 /// </summary>
 /// <typeparam name="TTask">Typ danych zadania.</typeparam>
 public sealed class TaskState<TTask> : TaskState where TTask : notnull

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -33,6 +34,13 @@ public static class ScheduleServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Alias for <see cref="AddScheduleServices"/>, named consistently with
+    /// <c>AddEventHandlers()</c> / <c>AddCommandHandlers()</c> / <c>AddTaskHandlers()</c>.
+    /// </summary>
+    public static IServiceCollection AddScheduleHandlers(this IServiceCollection services)
+        => services.AddScheduleServices();
+
+    /// <summary>
     /// Registers a simple schedule handler that runs on a schedule (like BackgroundService).
     /// The handler will be started automatically when the application starts.
     /// </summary>
@@ -49,7 +57,7 @@ public static class ScheduleServiceCollectionExtensions
     /// services.AddSchedule&lt;SyncHandler&gt;(Schedule.Now(), Schedule.EveryWeek(DayOfWeek.Friday, 22));
     /// </code>
     /// </example>
-    public static IServiceCollection AddSchedule<THandler>(
+    public static IServiceCollection AddSchedule<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
         this IServiceCollection services,
         params Schedule[] schedules)
         where THandler : class, IScheduleHandler
@@ -68,7 +76,7 @@ public static class ScheduleServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Configuration action for schedule options.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddSchedule<THandler>(
+    public static IServiceCollection AddSchedule<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
         this IServiceCollection services,
         Action<ScheduleOptions> configure)
         where THandler : class, IScheduleHandler
@@ -118,7 +126,7 @@ public static class ScheduleServiceCollectionExtensions
     /// <typeparam name="TData">The data type the handler processes.</typeparam>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddScheduleHandler<THandler, TData>(this IServiceCollection services)
+    public static IServiceCollection AddScheduleHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TData>(this IServiceCollection services)
         where THandler : class, IScheduleHandler<TData>
         where TData : notnull
     {

@@ -56,9 +56,9 @@ public interface IEventManager
 /// </summary>
 /// <remarks>
 /// Te opcje są stosowane gdy handler jest rejestrowany ręcznie przez <c>IEventManager.Subscribe(...)</c>
-/// lub przez <c>AddEvent&lt;THandler, TEvent&gt;(opts =&gt; ...)</c>. Gdy handler dziedziczy po
-/// <see cref="EventHandler{TEvent}"/>, jego properties (<c>WorkerCount</c>, <c>Timeout</c>,
-/// <c>ContinueOnError</c>) mają pierwszeństwo nad domyślnymi wartościami tej klasy, chyba że
+/// lub przez <c>AddEvent&lt;THandler, TEvent&gt;(opts =&gt; ...)</c>. Gdy handler deklaruje własne
+/// properties z <see cref="IEventHandler{TEvent}"/> (<c>WorkerCount</c>, <c>Timeout</c>,
+/// <c>ContinueOnError</c>), mają one pierwszeństwo nad domyślnymi wartościami tej klasy, chyba że
 /// opcje zostały przekazane jawnie do <c>AddEvent</c>.
 /// </remarks>
 public sealed class EventSubscriptionOptions
@@ -76,7 +76,7 @@ public sealed class EventSubscriptionOptions
     /// <remarks>
     /// Bumped z 30s do 5 min, aby pasować do <c>TaskHandler</c> i <c>ScheduleOptions</c>.
     /// Dla szybkich handlerów (np. notyfikacje UI) ustaw mniejszą wartość przez
-    /// <see cref="EventHandler{TEvent}.Timeout"/> override lub przez jawne opcje.
+    /// <see cref="IEventHandler{TEvent}.Timeout"/> property na handlerze lub przez jawne opcje.
     /// </remarks>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(5);
 
@@ -85,4 +85,12 @@ public sealed class EventSubscriptionOptions
     /// Default: true
     /// </summary>
     public bool ContinueOnError { get; init; } = true;
+
+    /// <summary>
+    /// Maksymalna liczba zbuforowanych eventów tego typu. <c>null</c> = bez limitu (domyślnie).
+    /// Ustaw limit, aby ograniczyć pamięć, gdy producent może wyprzedzać workerów; po przekroczeniu
+    /// limitu nadmiarowe eventy są odrzucane z ostrzeżeniem w logu (publikacja jest synchroniczna,
+    /// więc nie blokuje wątku publikującego).
+    /// </summary>
+    public int? Capacity { get; init; }
 }

@@ -13,7 +13,6 @@ public sealed class EventManager : IEventManager, IDisposable
 {
     private readonly ConcurrentDictionary<string, List<EventSubscription>> _subscriptions = new();
     private readonly ILogger<EventManager> _logger;
-    private readonly IServiceProvider _serviceProvider;
     private bool _disposed;
 
     /// <summary>
@@ -21,10 +20,9 @@ public sealed class EventManager : IEventManager, IDisposable
     /// </summary>
     private static readonly AsyncLocal<IEventTransaction?> _currentTransaction = new();
 
-    public EventManager(ILogger<EventManager> logger, IServiceProvider serviceProvider)
+    public EventManager(ILogger<EventManager> logger)
     {
         _logger = logger;
-        _serviceProvider = serviceProvider;
     }
 
     /// <summary>
@@ -116,10 +114,12 @@ public sealed class EventManager : IEventManager, IDisposable
 
         var subscription = new EventSubscription<TEvent>(handler, opts, _logger);
 
+        // Copy-on-write: publishers iterate the captured list reference without locking, so a
+        // concurrent Subscribe must swap in a new list rather than mutate the existing one.
         _subscriptions.AddOrUpdate(
             eventName,
             _ => [subscription],
-            (_, list) => { list.Add(subscription); return list; });
+            (_, list) => [.. list, subscription]);
 
         _logger.LogInformation(
             "Subscribed to event '{EventName}' with {WorkerCount} workers",
@@ -132,10 +132,12 @@ public sealed class EventManager : IEventManager, IDisposable
         var opts = options ?? new EventSubscriptionOptions();
         var subscription = new EventSubscription<object>(handler, opts, _logger);
 
+        // Copy-on-write: publishers iterate the captured list reference without locking, so a
+        // concurrent Subscribe must swap in a new list rather than mutate the existing one.
         _subscriptions.AddOrUpdate(
             eventName,
             _ => [subscription],
-            (_, list) => { list.Add(subscription); return list; });
+            (_, list) => [.. list, subscription]);
 
         _logger.LogInformation(
             "Subscribed to event '{EventName}' with {WorkerCount} workers",
@@ -197,11 +199,18 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
         _options = options;
         _logger = logger;
 
-        _channel = Channel.CreateUnbounded<TEvent>(new UnboundedChannelOptions
-        {
-            SingleReader = options.WorkerCount == 1,
-            SingleWriter = false
-        });
+        _channel = options.Capacity is int cap && cap > 0
+            ? Channel.CreateBounded<TEvent>(new BoundedChannelOptions(cap)
+            {
+                SingleReader = options.WorkerCount == 1,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait
+            })
+            : Channel.CreateUnbounded<TEvent>(new UnboundedChannelOptions
+            {
+                SingleReader = options.WorkerCount == 1,
+                SingleWriter = false
+            });
 
         _workers = new Task[options.WorkerCount];
         for (int i = 0; i < options.WorkerCount; i++)
@@ -214,7 +223,14 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
     {
         if (payload is TEvent typedPayload)
         {
-            _channel.Writer.TryWrite(typedPayload);
+            if (!_channel.Writer.TryWrite(typedPayload))
+            {
+                // Only reachable for a bounded channel that is full; unbounded always accepts.
+                _logger.LogWarning(
+                    "Event channel for '{EventType}' is full (capacity {Capacity}); event dropped.",
+                    typeof(TEvent).Name,
+                    _options.Capacity);
+            }
         }
         else
         {
@@ -229,12 +245,19 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
     {
         if (payload is TEvent typedPayload)
         {
-            using var timeoutCts = new CancellationTokenSource(_options.Timeout);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                timeoutCts.Token,
-                cancellationToken);
+            if (_options.Timeout == Timeout.InfiniteTimeSpan)
+            {
+                await _handler(typedPayload, cancellationToken);
+            }
+            else
+            {
+                using var timeoutCts = new CancellationTokenSource(_options.Timeout);
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    timeoutCts.Token,
+                    cancellationToken);
 
-            await _handler(typedPayload, linkedCts.Token);
+                await _handler(typedPayload, linkedCts.Token);
+            }
         }
         else
         {
@@ -251,12 +274,19 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
         {
             try
             {
-                using var timeoutCts = new CancellationTokenSource(_options.Timeout);
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                    timeoutCts.Token,
-                    cancellationToken);
+                if (_options.Timeout == Timeout.InfiniteTimeSpan)
+                {
+                    await _handler(data, cancellationToken);
+                }
+                else
+                {
+                    using var timeoutCts = new CancellationTokenSource(_options.Timeout);
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                        timeoutCts.Token,
+                        cancellationToken);
 
-                await _handler(data, linkedCts.Token);
+                    await _handler(data, linkedCts.Token);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

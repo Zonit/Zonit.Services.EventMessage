@@ -6,25 +6,19 @@ using System.Text;
 namespace Zonit.Messaging.Tasks.SourceGenerators;
 
 /// <summary>
-/// Source Generator kt�ry automatycznie generuje rejestracj� handler�w zada� dla AOT/Trimming.
-/// Skanuje projekt w poszukiwaniu klas dziedzicz�cych po TaskHandler&lt;T&gt; lub TaskBase&lt;T&gt; i generuje:
-/// 1. Extension method AddTaskHandlers() dla automatycznej rejestracji wszystkich handler�w
-/// 2. AOT-safe subscription bez reflection
+/// Source generator that emits AOT/trimming-safe task-handler registration.
+/// Scans the project for classes deriving from TaskHandler&lt;T&gt; and emits a
+/// reflection-free registration applied via a ModuleInitializer + TaskSegmentRegistry.
 /// </summary>
 [Generator]
 public class TaskHandlerGenerator : IIncrementalGenerator
 {
-    // New API
     private const string TaskHandlerClassName = "TaskHandler";
     private const string TaskHandlerNamespace = "Zonit.Messaging.Tasks";
 
-    // Legacy API
-    private const string TaskBaseClassName = "TaskBase";
-    private const string TaskBaseNamespace = "Zonit.Services.EventMessage";
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Znajd� wszystkie klasy dziedzicz�ce po TaskBase<T>
+        // Find all classes deriving from TaskHandler<T>
         var handlerClasses = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (node, _) => IsCandidateHandlerClass(node),
@@ -52,40 +46,37 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         if (symbol is not INamedTypeSymbol classSymbol)
             return null;
 
-        // Sprawd� czy klasa jest abstract lub static
+        // Skip abstract/static classes
         if (classSymbol.IsAbstract || classSymbol.IsStatic)
             return null;
 
-        // Znajd� klas� bazow� TaskHandler<T> (new API) lub TaskBase<T> (legacy)
+        // Skip open generic handler classes (e.g. MyHandler<T>): a closed type argument
+        // is required to emit a concrete, AOT-safe registration.
+        if (classSymbol.IsGenericType && classSymbol.TypeParameters.Length > 0)
+            return null;
+
+        // Walk the base chain for TaskHandler<TTask>.
         var baseType = classSymbol.BaseType;
         while (baseType != null)
         {
-            if (baseType.IsGenericType && baseType.TypeArguments.Length == 1)
+            if (baseType.IsGenericType
+                && baseType.TypeArguments.Length == 1
+                && baseType.Name == TaskHandlerClassName
+                && baseType.ContainingNamespace?.ToDisplayString() == TaskHandlerNamespace)
             {
-                var baseTypeName = baseType.Name;
-                var baseTypeNamespace = baseType.ContainingNamespace?.ToDisplayString();
+                var taskType = baseType.TypeArguments[0];
 
-                // Check for new TaskHandler<T> API
-                bool isNewApi = baseTypeName == TaskHandlerClassName
-                    && baseTypeNamespace == TaskHandlerNamespace;
+                // Skip if the task type is still an unbound type parameter.
+                if (taskType is ITypeParameterSymbol)
+                    return null;
 
-                // Check for legacy TaskBase<T> API
-                bool isLegacyApi = baseTypeName == TaskBaseClassName
-                    && baseTypeNamespace == TaskBaseNamespace;
-
-                if (isNewApi || isLegacyApi)
-                {
-                    var taskType = baseType.TypeArguments[0];
-
-                    return new TaskHandlerInfo(
-                        HandlerFullName: classSymbol.ToDisplayString(),
-                        HandlerName: classSymbol.Name,
-                        TaskFullName: taskType.ToDisplayString(),
-                        TaskName: taskType.Name,
-                        Namespace: classSymbol.ContainingNamespace?.ToDisplayString() ?? "Global",
-                        IsLegacy: isLegacyApi
-                    );
-                }
+                return new TaskHandlerInfo(
+                    HandlerFullName: classSymbol.ToDisplayString(),
+                    HandlerName: classSymbol.Name,
+                    TaskFullName: taskType.ToDisplayString(),
+                    TaskName: taskType.Name,
+                    Namespace: classSymbol.ContainingNamespace?.ToDisplayString() ?? "Global"
+                );
             }
             baseType = baseType.BaseType;
         }
@@ -122,11 +113,6 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         sb.AppendLine("using Microsoft.Extensions.DependencyInjection.Extensions;");
         sb.AppendLine("using Zonit.Messaging.Tasks;");
         sb.AppendLine("using Zonit.Messaging.Tasks.Hosting;");
-
-        if (handlers.Any(h => h.IsLegacy))
-        {
-            sb.AppendLine("using Zonit.Services.EventMessage;");
-        }
         sb.AppendLine();
         sb.AppendLine("namespace Zonit.Messaging.Tasks.Generated;");
         sb.AppendLine();
@@ -146,7 +132,7 @@ public class TaskHandlerGenerator : IIncrementalGenerator
 
         foreach (var handler in handlers)
         {
-            sb.AppendLine($"        // Handler: {handler.HandlerName} for task: {handler.TaskName}{(handler.IsLegacy ? " [LEGACY]" : "")}");
+            sb.AppendLine($"        // Handler: {handler.HandlerName} for task: {handler.TaskName}");
             sb.AppendLine($"        services.TryAddScoped<{handler.HandlerFullName}>();");
             // Multiple handlers can exist per task type - use TryAddEnumerable with concrete impl type
             // so GetServices<ITaskHandler<T>>() returns all of them.
@@ -165,7 +151,6 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         string HandlerName,
         string TaskFullName,
         string TaskName,
-        string Namespace,
-        bool IsLegacy
+        string Namespace
     );
 }

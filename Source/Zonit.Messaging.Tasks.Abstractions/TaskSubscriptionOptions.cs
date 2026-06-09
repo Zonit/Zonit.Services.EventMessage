@@ -6,7 +6,7 @@ namespace Zonit.Messaging.Tasks;
 public sealed class TaskSubscriptionOptions
 {
     /// <summary>
-    /// Liczba równoleg³ych workerów przetwarzaj¹cych zadania.
+    /// Liczba rï¿½wnolegï¿½ych workerï¿½w przetwarzajï¿½cych zadania.
     /// </summary>
     public int WorkerCount { get; set; } = 10;
 
@@ -16,35 +16,42 @@ public sealed class TaskSubscriptionOptions
     public TimeSpan Timeout { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// Czy kontynuowaæ przetwarzanie po b³êdzie.
+    /// Czy kontynuowaï¿½ przetwarzanie po bï¿½ï¿½dzie.
     /// </summary>
     public bool ContinueOnError { get; set; } = true;
 
     /// <summary>
-    /// Maksymalna liczba prób ponowienia zadania.
+    /// Maksymalna liczba prï¿½b ponowienia zadania.
     /// </summary>
     public int MaxRetries { get; set; } = 0;
 
     /// <summary>
-    /// OpóŸnienie miêdzy próbami ponowienia.
+    /// Opï¿½nienie miï¿½dzy prï¿½bami ponowienia.
     /// </summary>
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Definicja kroków postêpu dla zadania.
-    /// Null = brak œledzenia postêpu.
+    /// Definicja krokï¿½w postï¿½pu dla zadania.
+    /// Null = brak ï¿½ledzenia postï¿½pu.
     /// </summary>
     public TaskProgressStep[]? ProgressSteps { get; set; }
 
     /// <summary>
-    /// Tytu³ zadania wyœwietlany w interfejsie u¿ytkownika.
-    /// Null = u¿ywana bêdzie nazwa typu zadania.
+    /// Tytuï¿½ zadania wyï¿½wietlany w interfejsie uï¿½ytkownika.
+    /// Null = uï¿½ywana bï¿½dzie nazwa typu zadania.
     /// </summary>
     public string? Title { get; set; }
 
     /// <summary>
-    /// Opis zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Opis zadania wyï¿½wietlany w interfejsie uï¿½ytkownika.
     /// Null = brak opisu.
     /// </summary>
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Maksymalna liczba zbuforowanych zadaï¿½ tego typu. <c>null</c> = bez limitu (domyï¿½lnie).
+    /// Ustaw limit, aby ograniczyï¿½ pamiï¿½ï¿½ przy zalewie publikacji; po przekroczeniu limitu
+    /// nadmiarowe zadania sï¿½ odrzucane z ostrzeï¿½eniem w logu (publikacja jest synchroniczna).
+    /// </summary>
+    public int? Capacity { get; set; }
 }

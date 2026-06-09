@@ -10,7 +10,10 @@ internal abstract class ScheduleEntry : IDisposable
 {
     private Timer? _timer;
     private readonly object _timerLock = new();
-    private CancellationTokenSource? _executionCts;
+    // Cancelled once when the entry is disposed/stopped; every execution links its token to this.
+    private readonly CancellationTokenSource _lifetimeCts = new();
+    // Serializes executions so a schedule never overlaps itself (timer vs. TriggerNow vs. startup).
+    private readonly SemaphoreSlim _executionGate = new(1, 1);
     private bool _disposed;
 
     public ScheduleId Id { get; }
@@ -84,6 +87,18 @@ internal abstract class ScheduleEntry : IDisposable
             Logger.LogDebug("Schedule '{Name}' delay capped to 49 days", State.Name);
         }
 
+        // Back off on consecutive failures so a fast, perpetually-failing schedule does not
+        // turn into a tight retry/log storm. Grows with RetryDelay, capped at 5 minutes.
+        if (State.ConsecutiveFailures > 0 && Options.RetryDelay > TimeSpan.Zero)
+        {
+            var shift = Math.Min(State.ConsecutiveFailures - 1, 6);
+            var backoffTicks = Math.Min(
+                Options.RetryDelay.Ticks * (1L << shift),
+                TimeSpan.FromMinutes(5).Ticks);
+            if (delay.Ticks < backoffTicks)
+                delay = TimeSpan.FromTicks(backoffTicks);
+        }
+
         lock (_timerLock)
         {
             _timer?.Dispose();
@@ -106,16 +121,39 @@ internal abstract class ScheduleEntry : IDisposable
             return;
         }
 
+        await RunGuardedAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Runs one execution, serialized so a schedule never overlaps itself. A trigger that
+    /// arrives while a previous execution is still running waits for it to finish rather than
+    /// starting a concurrent run. Each execution's token is linked to the entry's lifetime,
+    /// so Dispose/Stop cancels in-flight work; the per-run linked source is always disposed.
+    /// </summary>
+    private async Task RunGuardedAsync()
+    {
         try
         {
-            _executionCts?.Cancel();
-            _executionCts = new CancellationTokenSource();
+            await _executionGate.WaitAsync(_lifetimeCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (ObjectDisposedException) { return; }
 
-            await ExecuteAsync(_executionCts.Token);
+        CancellationTokenSource? cts = null;
+        try
+        {
+            if (_disposed) return;
+            cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
+            await ExecuteAsync(cts.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Unexpected error in schedule timer callback");
+            Logger.LogError(ex, "Unexpected error executing schedule '{Name}'", State.Name);
+        }
+        finally
+        {
+            cts?.Dispose();
+            try { _executionGate.Release(); } catch (ObjectDisposedException) { }
         }
     }
 
@@ -139,18 +177,7 @@ internal abstract class ScheduleEntry : IDisposable
     public async void TriggerNow()
     {
         if (_disposed) return;
-
-        try
-        {
-            _executionCts?.Cancel();
-            _executionCts = new CancellationTokenSource();
-
-            await ExecuteAsync(_executionCts.Token);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error during manual schedule trigger");
-        }
+        await RunGuardedAsync().ConfigureAwait(false);
     }
 
     public void UpdateStatus(ScheduleStatus status)
@@ -171,10 +198,13 @@ internal abstract class ScheduleEntry : IDisposable
         State.ConsecutiveFailures++;
         State.LastError = ex.Message;
 
-        if (Options.MaxRetries > 0 && State.ConsecutiveFailures >= Options.MaxRetries)
+        // Only give up when StopOnMaxRetries is opted in. By default the schedule keeps
+        // retrying on its next occurrence (with failure backoff applied in ScheduleNext).
+        if (Options.StopOnMaxRetries && Options.MaxRetries > 0 &&
+            State.ConsecutiveFailures >= Options.MaxRetries)
         {
             UpdateStatus(ScheduleStatus.Failed);
-            Logger.LogError("Schedule '{Name}' exceeded max retries ({Max}), moving to failed state",
+            Logger.LogError("Schedule '{Name}' exceeded max retries ({Max}); stopping (StopOnMaxRetries).",
                 State.Name, Options.MaxRetries);
         }
     }
@@ -186,14 +216,16 @@ internal abstract class ScheduleEntry : IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        _executionCts?.Cancel();
-        _executionCts?.Dispose();
+        _lifetimeCts.Cancel();
 
         lock (_timerLock)
         {
             _timer?.Dispose();
             _timer = null;
         }
+
+        _lifetimeCts.Dispose();
+        _executionGate.Dispose();
     }
 }
 

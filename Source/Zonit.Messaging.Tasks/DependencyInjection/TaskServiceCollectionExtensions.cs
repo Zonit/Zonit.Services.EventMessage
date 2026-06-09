@@ -37,7 +37,7 @@ public static class TaskServiceCollectionExtensions
     /// </summary>
     /// <typeparam name="THandler">Handler type</typeparam>
     /// <typeparam name="TTask">Task type</typeparam>
-    public static IServiceCollection AddTask<THandler, TTask>(this IServiceCollection services)
+    public static IServiceCollection AddTask<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TTask>(this IServiceCollection services)
         where THandler : class, ITaskHandler<TTask>
         where TTask : notnull
     {
@@ -53,7 +53,7 @@ public static class TaskServiceCollectionExtensions
     /// <summary>
     /// Manually registers a task handler with options. AOT-safe version.
     /// </summary>
-    public static IServiceCollection AddTask<THandler, TTask>(
+    public static IServiceCollection AddTask<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TTask>(
         this IServiceCollection services,
         Action<TaskSubscriptionOptions> configureOptions)
         where THandler : class, ITaskHandler<TTask>
@@ -74,7 +74,7 @@ public static class TaskServiceCollectionExtensions
     /// Registers task handler. Use AddTask instead.
     /// </summary>
     [Obsolete("Use AddTask<THandler, TTask>() instead.")]
-    public static IServiceCollection AddTaskHandler<THandler, TTask>(this IServiceCollection services)
+    public static IServiceCollection AddTaskHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TTask>(this IServiceCollection services)
         where THandler : class, ITaskHandler<TTask>
         where TTask : notnull
         => services.AddTask<THandler, TTask>();

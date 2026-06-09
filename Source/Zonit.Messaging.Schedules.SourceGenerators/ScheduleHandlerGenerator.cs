@@ -6,10 +6,10 @@ using System.Text;
 namespace Zonit.Messaging.Schedules.SourceGenerators;
 
 /// <summary>
-/// Source Generator that automatically generates schedule handler registrations for AOT/Trimming.
-/// Scans the project for classes implementing IScheduleHandler&lt;T&gt; and generates:
-/// 1. Extension method AddScheduleHandlers() for automatic registration of all handlers
-/// 2. AOT-safe registration without reflection
+/// Source generator that emits AOT/trimming-safe schedule-handler registration.
+/// Scans the project for classes implementing IScheduleHandler&lt;T&gt; and emits a
+/// reflection-free registration applied via a ModuleInitializer + ScheduleSegmentRegistry,
+/// surfaced through AddScheduleServices()/AddScheduleHandlers().
 /// </summary>
 [Generator]
 public class ScheduleHandlerGenerator : IIncrementalGenerator

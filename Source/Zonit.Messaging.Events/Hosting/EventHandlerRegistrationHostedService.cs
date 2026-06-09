@@ -63,7 +63,7 @@ public abstract class EventHandlerRegistration
 /// Priorytet opcji przy subskrypcji:
 /// <list type="number">
 ///   <item>Opcje przekazane jawnie do <c>AddEvent&lt;THandler, TEvent&gt;(opts =&gt; ...)</c>.</item>
-///   <item>Properties z handlera dziedziczącego po <see cref="EventHandler{TEvent}"/>.</item>
+///   <item>Properties zadeklarowane na handlerze implementującym <see cref="IEventHandler{TEvent}"/> (override default-interface members).</item>
 ///   <item>Domyślne wartości <see cref="EventSubscriptionOptions"/>.</item>
 /// </list>
 /// </remarks>
@@ -98,19 +98,20 @@ public sealed class EventHandlerRegistration<TEvent> : EventHandlerRegistration 
         if (_options is not null)
             return _options;
 
-        // 2. Try to read defaults from EventHandler<TEvent> base properties
+        // 2. Read subscription defaults straight off the handler. WorkerCount/Timeout/
+        //    ContinueOnError are default-interface members on IEventHandler<TEvent>; a handler
+        //    that declares matching public properties overrides them as implicit interface
+        //    implementations, otherwise the interface defaults apply.
         using var scope = serviceProvider.CreateScope();
         var handler = scope.ServiceProvider.GetService<IEventHandler<TEvent>>();
 
-        // Fully qualified to disambiguate from System.EventHandler<TEventArgs> delegate
-        // (implicit usings bring System into scope).
-        if (handler is Zonit.Messaging.Events.EventHandler<TEvent> typedHandler)
+        if (handler is not null)
         {
             return new EventSubscriptionOptions
             {
-                WorkerCount = typedHandler.WorkerCount,
-                Timeout = typedHandler.Timeout,
-                ContinueOnError = typedHandler.ContinueOnError
+                WorkerCount = handler.WorkerCount,
+                Timeout = handler.Timeout,
+                ContinueOnError = handler.ContinueOnError
             };
         }
 

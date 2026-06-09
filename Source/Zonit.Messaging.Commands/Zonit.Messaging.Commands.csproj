@@ -27,7 +27,15 @@
     <ProjectReference Include="..\Zonit.Messaging.Commands.Abstractions\Zonit.Messaging.Commands.Abstractions.csproj" />
   </ItemGroup>
   
-  <ItemGroup>
-    <Folder Include="Internal\" />
+  <!--
+    AI context delivery: ship the MSBuild installer + instruction docs inside the package so a
+    consumer's AI assistant auto-learns this library at build time. See
+    buildTransitive/Zonit.Messaging.targets. The per-package stub auto-imports and pulls in the
+    shared installer once even when several Zonit.Messaging.* packages are installed.
+  -->
+  <ItemGroup Label="AI context delivery">
+    <None Include="..\buildTransitive\Zonit.Messaging.Commands.targets" Pack="true" PackagePath="buildTransitive\Zonit.Messaging.Commands.targets" />
+    <None Include="..\buildTransitive\Zonit.Messaging.targets" Pack="true" PackagePath="buildTransitive\Zonit.Messaging.targets" />
+    <None Include="..\..\Instruction\*.md" Exclude="..\..\Instruction\README.md" Pack="true" PackagePath="Instruction\messaging" />
   </ItemGroup>
 </Project>

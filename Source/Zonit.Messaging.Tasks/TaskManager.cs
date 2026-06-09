@@ -11,7 +11,7 @@ namespace Zonit.Messaging.Tasks;
 public sealed class TaskManager : ITaskManager, IDisposable
 {
     private readonly ConcurrentDictionary<string, List<TaskSubscription>> _subscriptions = new();
-    private readonly TaskStateStore _stateStore = new();
+    private readonly TaskStateStore _stateStore;
     private readonly ILogger<TaskManager> _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly Timer _cleanupTimer;
@@ -21,6 +21,7 @@ public sealed class TaskManager : ITaskManager, IDisposable
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _stateStore = new TaskStateStore(logger);
 
         // Cleanup starych task�w co 5 minut (usuwa zako�czone starsze ni� 30 min)
         _cleanupTimer = new Timer(
@@ -68,10 +69,12 @@ public sealed class TaskManager : ITaskManager, IDisposable
 
         var subscription = new TaskSubscription<TTask>(handler, opts, _logger, opts.ProgressSteps);
 
+        // Copy-on-write: publishers iterate the captured list reference without locking, so a
+        // concurrent Subscribe must swap in a new list rather than mutate the existing one.
         _subscriptions.AddOrUpdate(
             taskName,
             _ => [subscription],
-            (_, list) => { list.Add(subscription); return list; });
+            (_, list) => [.. list, subscription]);
 
         _logger.LogInformation(
             "Subscribed to task '{TaskName}' with {WorkerCount} workers",
@@ -85,10 +88,12 @@ public sealed class TaskManager : ITaskManager, IDisposable
         var opts = options ?? new TaskSubscriptionOptions();
         var subscription = new TaskSubscription<object>(handler, opts, _logger, opts.ProgressSteps);
 
+        // Copy-on-write: publishers iterate the captured list reference without locking, so a
+        // concurrent Subscribe must swap in a new list rather than mutate the existing one.
         _subscriptions.AddOrUpdate(
             taskName,
             _ => [subscription],
-            (_, list) => { list.Add(subscription); return list; });
+            (_, list) => [.. list, subscription]);
 
         _logger.LogInformation(
             "Subscribed to task '{TaskName}' with {WorkerCount} workers",
@@ -233,11 +238,18 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
         _logger = logger;
         _progressSteps = progressSteps;
 
-        _channel = Channel.CreateUnbounded<(TTask, Guid?, Guid)>(new UnboundedChannelOptions
-        {
-            SingleReader = options.WorkerCount == 1,
-            SingleWriter = false
-        });
+        _channel = options.Capacity is int cap && cap > 0
+            ? Channel.CreateBounded<(TTask, Guid?, Guid)>(new BoundedChannelOptions(cap)
+            {
+                SingleReader = options.WorkerCount == 1,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait
+            })
+            : Channel.CreateUnbounded<(TTask, Guid?, Guid)>(new UnboundedChannelOptions
+            {
+                SingleReader = options.WorkerCount == 1,
+                SingleWriter = false
+            });
 
         _workers = new Task[options.WorkerCount];
         for (int i = 0; i < options.WorkerCount; i++)
@@ -257,7 +269,15 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
             var taskType = typeof(TTask).FullName ?? typeof(TTask).Name;
 
             stateStore.CreateTask(taskId, taskType, extensionId, totalSteps, _options.Title, _options.Description, typedPayload);
-            _channel.Writer.TryWrite((typedPayload, extensionId, taskId));
+            if (!_channel.Writer.TryWrite((typedPayload, extensionId, taskId)))
+            {
+                // Only reachable for a bounded channel that is full; unbounded always accepts.
+                _logger.LogWarning(
+                    "Task channel for '{TaskType}' is full (capacity {Capacity}); task dropped.",
+                    typeof(TTask).Name,
+                    _options.Capacity);
+                stateStore.FailTask(taskId);
+            }
         }
         else
         {
@@ -280,12 +300,24 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
             while (!success && retryCount <= _options.MaxRetries)
             {
                 TaskProgressContext? progressContext = null;
+                CancellationTokenSource? timeoutCts = null;
+                CancellationTokenSource? linkedCts = null;
                 try
                 {
-                    using var timeoutCts = new CancellationTokenSource(_options.Timeout);
-                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                        timeoutCts.Token,
-                        cancellationToken);
+                    // Fast path: when no timeout is wanted, skip the two CTS allocations + timer.
+                    CancellationToken handlerToken;
+                    if (_options.Timeout == Timeout.InfiniteTimeSpan)
+                    {
+                        handlerToken = cancellationToken;
+                    }
+                    else
+                    {
+                        timeoutCts = new CancellationTokenSource(_options.Timeout);
+                        linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                            timeoutCts.Token,
+                            cancellationToken);
+                        handlerToken = linkedCts.Token;
+                    }
 
                     progressContext = new TaskProgressContext(
                         _progressSteps,
@@ -295,7 +327,7 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
                     {
                         Data = data,
                         TaskId = taskId,
-                        CancellationToken = linkedCts.Token,
+                        CancellationToken = handlerToken,
                         ExtensionId = extensionId,
                         Progress = progressContext
                     };
@@ -334,6 +366,11 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
                         if (!_options.ContinueOnError)
                             throw;
                     }
+                }
+                finally
+                {
+                    linkedCts?.Dispose();
+                    timeoutCts?.Dispose();
                 }
             }
         }

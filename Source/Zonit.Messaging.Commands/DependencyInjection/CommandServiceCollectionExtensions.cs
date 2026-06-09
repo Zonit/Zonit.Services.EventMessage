@@ -35,7 +35,7 @@ public static class CommandServiceCollectionExtensions
     /// <typeparam name="THandler">Handler type implementing IRequestHandler&lt;TRequest, TResponse&gt;</typeparam>
     /// <typeparam name="TRequest">Request type</typeparam>
     /// <typeparam name="TResponse">Response type</typeparam>
-    public static IServiceCollection AddCommand<THandler, TRequest, TResponse>(this IServiceCollection services)
+    public static IServiceCollection AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TRequest, TResponse>(this IServiceCollection services)
         where THandler : class, IRequestHandler<TRequest, TResponse>
         where TRequest : IRequest<TResponse>
         where TResponse : notnull

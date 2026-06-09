@@ -6,10 +6,10 @@ using System.Text;
 namespace Zonit.Messaging.Events.SourceGenerators;
 
 /// <summary>
-/// Source Generator kt�ry automatycznie generuje rejestracj� handler�w event�w dla AOT/Trimming.
-/// Skanuje projekt w poszukiwaniu klas implementuj�cych IEventHandler&lt;T&gt; i generuje:
-/// 1. Extension method AddEventHandlers() dla automatycznej rejestracji wszystkich handler�w
-/// 2. AOT-safe subscription bez reflection
+/// Source generator that emits AOT/trimming-safe event-handler registration.
+/// Scans the project for classes implementing IEventHandler&lt;T&gt; and emits a
+/// reflection-free registration applied via a ModuleInitializer + EventSegmentRegistry,
+/// surfaced through AddEventHandlers().
 /// </summary>
 [Generator]
 public class EventHandlerGenerator : IIncrementalGenerator
@@ -19,7 +19,7 @@ public class EventHandlerGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Znajd� wszystkie klasy dziedzicz�ce po EventBase<T>
+        // Find all classes implementing IEventHandler<T>
         var handlerClasses = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (node, _) => IsCandidateHandlerClass(node),
@@ -47,12 +47,16 @@ public class EventHandlerGenerator : IIncrementalGenerator
         if (symbol is not INamedTypeSymbol classSymbol)
             return null;
 
-        // Sprawd� czy klasa jest abstract lub static
+        // Skip abstract/static classes
         if (classSymbol.IsAbstract || classSymbol.IsStatic)
             return null;
 
-        // Check for IEventHandler<T> interface (new API only)
-        // Legacy EventBase<T> uses different registration system and should not be detected here
+        // Skip open generic handler classes (e.g. MyHandler<T>): a closed type argument
+        // is required to emit a concrete, AOT-safe registration.
+        if (classSymbol.IsGenericType && classSymbol.TypeParameters.Length > 0)
+            return null;
+
+        // Detect IEventHandler<T> implementations.
         foreach (var iface in classSymbol.AllInterfaces)
         {
             if (iface.IsGenericType
@@ -61,6 +65,10 @@ public class EventHandlerGenerator : IIncrementalGenerator
                 && iface.TypeArguments.Length == 1)
             {
                 var eventType = iface.TypeArguments[0];
+
+                // Skip if the event type is still an unbound type parameter.
+                if (eventType is ITypeParameterSymbol)
+                    return null;
 
                 return new EventHandlerInfo(
                     HandlerFullName: classSymbol.ToDisplayString(),

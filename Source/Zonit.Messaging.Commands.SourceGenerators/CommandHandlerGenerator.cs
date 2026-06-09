@@ -47,9 +47,14 @@ public class CommandHandlerGenerator : IIncrementalGenerator
         if (classSymbol.IsAbstract || classSymbol.IsStatic)
             return null;
 
+        // Skip open generic handler classes (e.g. MyHandler<T>): a closed type argument
+        // is required to emit a concrete, AOT-safe registration.
+        if (classSymbol.IsGenericType && classSymbol.TypeParameters.Length > 0)
+            return null;
+
         var handlerInterface = classSymbol.AllInterfaces
-            .FirstOrDefault(i => i.IsGenericType 
-                && i.Name == RequestHandlerInterfaceName 
+            .FirstOrDefault(i => i.IsGenericType
+                && i.Name == RequestHandlerInterfaceName
                 && i.TypeArguments.Length == 2
                 && i.ContainingNamespace?.ToDisplayString() == RequestHandlerNamespace);
 
@@ -58,6 +63,10 @@ public class CommandHandlerGenerator : IIncrementalGenerator
 
         var requestType = handlerInterface.TypeArguments[0];
         var responseType = handlerInterface.TypeArguments[1];
+
+        // Skip if request/response are still unbound type parameters.
+        if (requestType is ITypeParameterSymbol || responseType is ITypeParameterSymbol)
+            return null;
 
         return new HandlerInfo(
             HandlerFullName: classSymbol.ToDisplayString(),

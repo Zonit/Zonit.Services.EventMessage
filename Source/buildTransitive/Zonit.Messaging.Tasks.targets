@@ -1,0 +1,6 @@
+<Project>
+  <!-- Per-package entry point (NuGet auto-imports <PackageId>.targets). Imports the shared
+       Zonit.Messaging installer once, even when several Zonit.Messaging.* packages are installed. -->
+  <Import Project="$(MSBuildThisFileDirectory)Zonit.Messaging.targets"
+          Condition="'$(_ZonitMsgInstallerSeen)' != 'true'" />
+</Project>

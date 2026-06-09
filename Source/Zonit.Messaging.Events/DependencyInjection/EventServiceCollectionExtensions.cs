@@ -37,7 +37,7 @@ public static class EventServiceCollectionExtensions
     /// </summary>
     /// <typeparam name="THandler">Handler type</typeparam>
     /// <typeparam name="TEvent">Event type</typeparam>
-    public static IServiceCollection AddEvent<THandler, TEvent>(this IServiceCollection services)
+    public static IServiceCollection AddEvent<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>(this IServiceCollection services)
         where THandler : class, IEventHandler<TEvent>
         where TEvent : notnull
     {
@@ -53,7 +53,7 @@ public static class EventServiceCollectionExtensions
     /// <summary>
     /// Manually registers an event handler with options. AOT-safe version.
     /// </summary>
-    public static IServiceCollection AddEvent<THandler, TEvent>(
+    public static IServiceCollection AddEvent<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>(
         this IServiceCollection services,
         Action<EventSubscriptionOptions> configureOptions)
         where THandler : class, IEventHandler<TEvent>
@@ -74,7 +74,7 @@ public static class EventServiceCollectionExtensions
     /// Registers event handler. Use AddEvent instead.
     /// </summary>
     [Obsolete("Use AddEvent<THandler, TEvent>() instead.")]
-    public static IServiceCollection AddEventHandler<THandler, TEvent>(this IServiceCollection services)
+    public static IServiceCollection AddEventHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>(this IServiceCollection services)
         where THandler : class, IEventHandler<TEvent>
         where TEvent : notnull
         => services.AddEvent<THandler, TEvent>();
@@ -85,14 +85,4 @@ public static class EventServiceCollectionExtensions
     [Obsolete("Use AddEventHandlers() instead.")]
     public static IServiceCollection AddEventProvider(this IServiceCollection services)
         => services.AddEventHandlers();
-}
-
-/// <summary>
-/// Opcje dla konkretnego handlera event�w.
-/// </summary>
-public class EventHandlerOptions<TEvent> where TEvent : notnull
-{
-    public int WorkerCount { get; set; } = 10;
-    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
-    public bool ContinueOnError { get; set; } = true;
 }
