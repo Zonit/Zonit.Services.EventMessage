@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- BenchmarkDotNet requires an optimized build to produce meaningful numbers. -->
+    <Optimize>true</Optimize>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Commands\Zonit.Messaging.Commands.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Events\Zonit.Messaging.Events.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Tasks\Zonit.Messaging.Tasks.csproj" />
+
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Commands.SourceGenerators\Zonit.Messaging.Commands.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Events.SourceGenerators\Zonit.Messaging.Events.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Tasks.SourceGenerators\Zonit.Messaging.Tasks.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

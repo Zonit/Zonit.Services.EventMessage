@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Zonit.Messaging.Tasks.Hosting;
 
 /// <summary>
-/// Hosted service do automatycznej rejestracji handlerów zadañ przy starcie aplikacji.
-/// Skanuje DI po ITaskHandler&lt;T&gt; i automatycznie subskrybuje do odpowiednich zadañ.
+/// Hosted service do automatycznej rejestracji handlerï¿½w zadaï¿½ przy starcie aplikacji.
+/// Skanuje DI po ITaskHandler&lt;T&gt; i automatycznie subskrybuje do odpowiednich zadaï¿½.
 /// </summary>
 public sealed class TaskHandlerRegistrationHostedService : IHostedService
 {
@@ -48,7 +48,7 @@ public sealed class TaskHandlerRegistrationHostedService : IHostedService
 }
 
 /// <summary>
-/// Abstrakcyjna rejestracja handlera zadañ.
+/// Abstrakcyjna rejestracja handlera zadaï¿½.
 /// </summary>
 public abstract class TaskHandlerRegistration
 {
@@ -57,7 +57,7 @@ public abstract class TaskHandlerRegistration
 }
 
 /// <summary>
-/// Typowana rejestracja handlera zadañ.
+/// Typowana rejestracja handlera zadaï¿½.
 /// </summary>
 public sealed class TaskHandlerRegistration<TTask> : TaskHandlerRegistration where TTask : notnull
 {
@@ -99,6 +99,9 @@ public sealed class TaskHandlerRegistration<TTask> : TaskHandlerRegistration whe
             {
                 WorkerCount = typedHandler.WorkerCount,
                 Timeout = typedHandler.Timeout,
+                MaxRetries = typedHandler.MaxRetries,
+                RetryDelay = typedHandler.RetryDelay,
+                ContinueOnError = typedHandler.ContinueOnError,
                 ProgressSteps = typedHandler.ProgressSteps,
                 Title = typedHandler.Title,
                 Description = typedHandler.Description

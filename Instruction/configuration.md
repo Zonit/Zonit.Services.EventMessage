@@ -5,7 +5,7 @@
 - **Managers / providers** (`IEventManager`, `IEventProvider`, `ITaskManager`, `ITaskProvider`,
   `ICommandProvider`, `IScheduleProvider`) are **singletons**.
 - **Handlers** are **scoped**. Every dispatched event/task/schedule run opens a fresh DI scope and
-  resolves the handler from it, so injecting a `DbContext` or other scoped service is safe — each
+  resolves the handler from it, so injecting a `DbContext` or other scoped service is safe; each
   invocation gets its own.
 
 ## Workers, timeouts, capacity
@@ -17,7 +17,7 @@ Events and tasks each run on a per-type channel drained by a pool of workers. Tu
 | Option | Default | Notes |
 | :--- | :--- | :--- |
 | `WorkerCount` | `10` | Parallel workers for that event/task type |
-| `Timeout` | `5 min` | Per-invocation limit, enforced via the `CancellationToken` passed to the handler. Set `Timeout.InfiniteTimeSpan` to disable it — this also takes a fast path that skips the per-message `CancellationTokenSource` allocations |
+| `Timeout` | `5 min` | Per-invocation limit, enforced via the `CancellationToken` passed to the handler. Set `Timeout.InfiniteTimeSpan` to disable it; this also takes a fast path that skips the per-message `CancellationTokenSource` allocations |
 | `ContinueOnError` | `true` | Keep draining after a handler throws (error is logged) |
 | `Capacity` | `null` (unbounded) | Max buffered messages for that type. Set a bound to cap memory when a producer can outrun the workers; once full, extra messages are dropped with a logged warning (publishing is synchronous, so it never blocks the publisher) |
 
@@ -28,7 +28,7 @@ Events and tasks each run on a per-type channel drained by a pool of workers. Tu
 Zonit.Messaging is built for Native AOT and trimming:
 
 - **Auto-discovery** (`AddXxxHandlers()`) is generated against concrete types via a
-  `[ModuleInitializer]` — no runtime reflection, no assembly scanning. This path is fully
+  `[ModuleInitializer]`, with no runtime reflection and no assembly scanning. This path is fully
   trimming/AOT-clean.
 - **Manual** helpers (`AddEvent<H,E>`, `AddCommand<H,Rq,Rs>`, `AddTask<H,T>`,
   `AddSchedule<H>`, `AddScheduleHandler<H,D>`) annotate their handler type parameter with
@@ -36,7 +36,7 @@ Zonit.Messaging is built for Native AOT and trimming:
 - The packages set `IsAotCompatible` / `IsTrimmable`, so the IL trim/AOT analyzers run on every
   build and the packages ship **zero IL warnings**.
 
-There is nothing to configure for AOT — just publish with `PublishAot=true`.
+There is nothing to configure for AOT; just publish with `PublishAot=true`.
 
 ## Where to call `AddXxxHandlers()`
 

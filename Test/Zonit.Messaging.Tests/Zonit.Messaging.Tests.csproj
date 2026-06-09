@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" Version="8.3.0" />
+    <PackageReference Include="coverlet.collector" Version="6.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+  </ItemGroup>
+
+  <!-- Reference the real packages plus their source generators (as analyzers), so the tests
+       exercise the actual AOT-safe generated registration for the test assembly's own handlers. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Commands\Zonit.Messaging.Commands.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Events\Zonit.Messaging.Events.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Tasks\Zonit.Messaging.Tasks.csproj" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Schedules\Zonit.Messaging.Schedules.csproj" />
+
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Commands.SourceGenerators\Zonit.Messaging.Commands.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Events.SourceGenerators\Zonit.Messaging.Events.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Tasks.SourceGenerators\Zonit.Messaging.Tasks.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Source\Zonit.Messaging.Schedules.SourceGenerators\Zonit.Messaging.Schedules.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

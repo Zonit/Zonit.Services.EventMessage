@@ -34,7 +34,7 @@ using Zonit.Messaging.Schedules;
 services.AddCommandHandlers();   // Commands (CQRS)
 services.AddEventHandlers();     // Events (Pub/Sub)
 services.AddTaskHandlers();      // Tasks (background jobs)
-services.AddScheduleHandlers();  // Schedules (recurring jobs)  — alias of AddScheduleServices()
+services.AddScheduleHandlers();  // Schedules (recurring jobs), alias of AddScheduleServices()
 ```
 
 ## Auto-discovery (how registration works)

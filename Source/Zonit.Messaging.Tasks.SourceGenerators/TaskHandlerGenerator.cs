@@ -7,18 +7,19 @@ namespace Zonit.Messaging.Tasks.SourceGenerators;
 
 /// <summary>
 /// Source generator that emits AOT/trimming-safe task-handler registration.
-/// Scans the project for classes deriving from TaskHandler&lt;T&gt; and emits a
-/// reflection-free registration applied via a ModuleInitializer + TaskSegmentRegistry.
+/// Scans the project for classes implementing ITaskHandler&lt;T&gt; (directly or via the
+/// TaskHandler&lt;T&gt; base) and emits a reflection-free registration applied via a
+/// ModuleInitializer + TaskSegmentRegistry.
 /// </summary>
 [Generator]
 public class TaskHandlerGenerator : IIncrementalGenerator
 {
-    private const string TaskHandlerClassName = "TaskHandler";
+    private const string TaskHandlerInterfaceName = "ITaskHandler";
     private const string TaskHandlerNamespace = "Zonit.Messaging.Tasks";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Find all classes deriving from TaskHandler<T>
+        // Find all classes implementing ITaskHandler<T>
         var handlerClasses = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (node, _) => IsCandidateHandlerClass(node),
@@ -55,16 +56,16 @@ public class TaskHandlerGenerator : IIncrementalGenerator
         if (classSymbol.IsGenericType && classSymbol.TypeParameters.Length > 0)
             return null;
 
-        // Walk the base chain for TaskHandler<TTask>.
-        var baseType = classSymbol.BaseType;
-        while (baseType != null)
+        // Detect ITaskHandler<TTask> implementations (direct, or via the TaskHandler<T> base
+        // which implements the interface transitively).
+        foreach (var iface in classSymbol.AllInterfaces)
         {
-            if (baseType.IsGenericType
-                && baseType.TypeArguments.Length == 1
-                && baseType.Name == TaskHandlerClassName
-                && baseType.ContainingNamespace?.ToDisplayString() == TaskHandlerNamespace)
+            if (iface.IsGenericType
+                && iface.TypeArguments.Length == 1
+                && iface.Name == TaskHandlerInterfaceName
+                && iface.ContainingNamespace?.ToDisplayString() == TaskHandlerNamespace)
             {
-                var taskType = baseType.TypeArguments[0];
+                var taskType = iface.TypeArguments[0];
 
                 // Skip if the task type is still an unbound type parameter.
                 if (taskType is ITypeParameterSymbol)
@@ -78,7 +79,6 @@ public class TaskHandlerGenerator : IIncrementalGenerator
                     Namespace: classSymbol.ContainingNamespace?.ToDisplayString() ?? "Global"
                 );
             }
-            baseType = baseType.BaseType;
         }
 
         return null;

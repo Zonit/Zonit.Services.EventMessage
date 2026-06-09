@@ -16,7 +16,7 @@ New here? Start with [usage.md](./usage.md).
 | [tasks.md](./tasks.md) | Background jobs: `TaskHandler<T>`, progress, monitoring, retries |
 | [schedules.md](./schedules.md) | Recurring jobs: `IScheduleHandler`, the `Schedule` factory, auto-start |
 | [configuration.md](./configuration.md) | DI lifetimes, workers, timeouts, bounded channels, AOT/trimming |
-| [transport.md](./transport.md) | Cross-service events over a broker (planned — design only) |
+| [transport.md](./transport.md) | Cross-service events over a broker (planned, design only) |
 
 These files are the authored source. At consumer build time the packages project them into
 `.zonit/messaging/` plus editor-native rule files (`.cursor/rules/`, `.github/instructions/`,

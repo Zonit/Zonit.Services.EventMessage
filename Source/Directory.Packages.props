@@ -3,10 +3,10 @@
   <!-- Central Package Management for Zonit.Messaging -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <!-- Version -->
-    <Version>1.1.8</Version>
-    <AssemblyVersion>$(Version)</AssemblyVersion>
-    <FileVersion>$(Version)</FileVersion>
+    <!--
+      Versioning lives in Directory.Build.props via VersionPrefix + VersionSuffix.
+      Do NOT add version properties here — the prerelease suffix breaks AssemblyFileVersionAttribute (CS7034).
+    -->
     <!-- Package Output -->
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\Packages</PackageOutputPath>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>

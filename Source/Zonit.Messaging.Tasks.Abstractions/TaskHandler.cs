@@ -1,46 +1,62 @@
 namespace Zonit.Messaging.Tasks;
 
 /// <summary>
-/// Abstrakcyjna klasa bazowa dla handlerów zadañ z konfiguracj¹ i postêpem.
+/// Abstrakcyjna klasa bazowa dla handlerï¿½w zadaï¿½ z konfiguracjï¿½ i postï¿½pem.
 /// </summary>
 /// <typeparam name="TData">Typ danych zadania.</typeparam>
 public abstract class TaskHandler<TData> : ITaskHandler<TData> where TData : notnull
 {
     /// <summary>
-    /// Liczba równoleg³ych workerów przetwarzaj¹cych zadania tego typu.
-    /// Domyœlnie 10.
+    /// Liczba rï¿½wnolegï¿½ych workerï¿½w przetwarzajï¿½cych zadania tego typu.
+    /// Domyï¿½lnie 10.
     /// </summary>
     public virtual int WorkerCount => 10;
 
     /// <summary>
     /// Maksymalny czas wykonania pojedynczego zadania.
-    /// Domyœlnie 5 minut.
+    /// Domyï¿½lnie 5 minut. Ustaw <see cref="System.Threading.Timeout.InfiniteTimeSpan"/> aby wyï¿½ï¿½czyï¿½.
     /// </summary>
     public virtual TimeSpan Timeout => TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// Definicja kroków postêpu z szacowanymi czasami.
-    /// Null = brak œledzenia postêpu.
+    /// Maksymalna liczba ponowieï¿½ po bï¿½ï¿½dzie (rozdzielonych <see cref="RetryDelay"/>).
+    /// Domyï¿½lnie 0 (bez ponowieï¿½).
+    /// </summary>
+    public virtual int MaxRetries => 0;
+
+    /// <summary>
+    /// Opï¿½nienie miï¿½dzy ponowieniami. Domyï¿½lnie 5 sekund.
+    /// </summary>
+    public virtual TimeSpan RetryDelay => TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Czy kontynuowaï¿½ drenowanie kolejki po ostatecznym bï¿½ï¿½dzie zadania. Domyï¿½lnie true.
+    /// </summary>
+    public virtual bool ContinueOnError => true;
+
+    /// <summary>
+    /// Definicja krokï¿½w postï¿½pu z szacowanymi czasami.
+    /// Null = brak ï¿½ledzenia postï¿½pu.
     /// </summary>
     public virtual TaskProgressStep[]? ProgressSteps => null;
 
     /// <summary>
-    /// Tytu³ zadania wyœwietlany w interfejsie u¿ytkownika.
-    /// Null = u¿ywana bêdzie nazwa typu zadania.
+    /// Tytuï¿½ zadania wyï¿½wietlany w interfejsie uï¿½ytkownika.
+    /// Null = uï¿½ywana bï¿½dzie nazwa typu zadania.
     /// </summary>
     public virtual string? Title => null;
 
     /// <summary>
-    /// Opis zadania wyœwietlany w interfejsie u¿ytkownika.
+    /// Opis zadania wyï¿½wietlany w interfejsie uï¿½ytkownika.
     /// Null = brak opisu.
     /// </summary>
     public virtual string? Description => null;
 
     /// <summary>
-    /// Metoda obs³ugi zadania - implementowana przez u¿ytkownika.
+    /// Metoda obsï¿½ugi zadania - implementowana przez uï¿½ytkownika.
     /// </summary>
     /// <param name="data">Dane zadania.</param>
-    /// <param name="progress">Kontekst do raportowania postêpu.</param>
+    /// <param name="progress">Kontekst do raportowania postï¿½pu.</param>
     /// <param name="cancellationToken">Token anulowania.</param>
     protected abstract Task HandleAsync(
         TData data,
@@ -48,8 +64,8 @@ public abstract class TaskHandler<TData> : ITaskHandler<TData> where TData : not
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Implementacja interfejsu - wywo³ywana przez system.
-    /// Nie wywo³uj tej metody bezpoœrednio.
+    /// Implementacja interfejsu - wywoï¿½ywana przez system.
+    /// Nie wywoï¿½uj tej metody bezpoï¿½rednio.
     /// </summary>
     Task ITaskHandler<TData>.HandleAsync(TaskPayload<TData> payload)
     {

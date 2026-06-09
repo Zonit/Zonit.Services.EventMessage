@@ -1,21 +1,51 @@
+<div align="center">
+
 # Zonit.Messaging
 
-Lightweight in-process messaging for .NET — **Commands** (CQRS), **Events** (pub/sub), **Tasks**
-(background jobs) and **Schedules** (recurring jobs) — with first-class **Native AOT / trimming**
-support. Handlers are discovered and registered at compile time by source generators, so there is
-**no runtime reflection and no assembly scanning**.
+**Lightweight in-process messaging for .NET: Commands (CQRS), Events (pub/sub), Tasks (background jobs) and Schedules (recurring jobs).**
+
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
+</div>
+
+---
+
+Four small, independent libraries that share one idea: you write a handler class, the library
+finds it at compile time and wires it into DI. There is no runtime reflection and no assembly
+scanning, so everything works under trimming and Native AOT. Pick only the patterns you need.
+
+```csharp
+// 1. Register (once, anywhere in your DI setup)
+services.AddCommandHandlers();
+services.AddEventHandlers();
+services.AddTaskHandlers();
+services.AddScheduleHandlers();
+
+// 2. Write a handler. A source generator discovers and registers it.
+public sealed class SendWelcome : IEventHandler<UserCreated>
+{
+    public Task HandleAsync(UserCreated data, CancellationToken ct) => /* ... */;
+}
+
+// 3. Send.
+eventProvider.Publish(new UserCreated(userId, email));
+```
+
+> Full guides for every pattern live in [`Instruction/`](./Instruction). Installing a package also
+> teaches your AI coding assistant (Claude Code, Copilot, Cursor) how to use the library.
 
 ## Packages
 
-Install only the patterns you use. Each comes with an `*.Abstractions` package for projects that
-should depend on the contracts without the implementation.
+Install only what you use. Each pattern has an `*.Abstractions` package so your domain layer can
+depend on the contracts without the implementation.
 
 | Package | Version | Downloads | Use it for |
-|---|---|---|---|
-| **Zonit.Messaging.Commands** | [![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Commands.svg)](https://www.nuget.org/packages/Zonit.Messaging.Commands) | ![Downloads](https://img.shields.io/nuget/dt/Zonit.Messaging.Commands.svg) | CQRS request → one handler → typed response |
-| **Zonit.Messaging.Events** | [![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Events.svg)](https://www.nuget.org/packages/Zonit.Messaging.Events) | ![Downloads](https://img.shields.io/nuget/dt/Zonit.Messaging.Events.svg) | Pub/Sub fan-out to many handlers |
-| **Zonit.Messaging.Tasks** | [![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Tasks.svg)](https://www.nuget.org/packages/Zonit.Messaging.Tasks) | ![Downloads](https://img.shields.io/nuget/dt/Zonit.Messaging.Tasks.svg) | Background jobs with progress & retries |
-| **Zonit.Messaging.Schedules** | [![NuGet](https://img.shields.io/nuget/v/Zonit.Messaging.Schedules.svg)](https://www.nuget.org/packages/Zonit.Messaging.Schedules) | ![Downloads](https://img.shields.io/nuget/dt/Zonit.Messaging.Schedules.svg) | Recurring jobs on a typed schedule |
+|:---|:---|:---|:---|
+| **Zonit.Messaging.Commands** | [![v](https://img.shields.io/nuget/v/Zonit.Messaging.Commands.svg?label=)](https://www.nuget.org/packages/Zonit.Messaging.Commands) | ![dt](https://img.shields.io/nuget/dt/Zonit.Messaging.Commands.svg?label=) | CQRS request, one handler, typed response |
+| **Zonit.Messaging.Events** | [![v](https://img.shields.io/nuget/v/Zonit.Messaging.Events.svg?label=)](https://www.nuget.org/packages/Zonit.Messaging.Events) | ![dt](https://img.shields.io/nuget/dt/Zonit.Messaging.Events.svg?label=) | Pub/Sub fan-out to many handlers |
+| **Zonit.Messaging.Tasks** | [![v](https://img.shields.io/nuget/v/Zonit.Messaging.Tasks.svg?label=)](https://www.nuget.org/packages/Zonit.Messaging.Tasks) | ![dt](https://img.shields.io/nuget/dt/Zonit.Messaging.Tasks.svg?label=) | Background jobs with progress and retries |
+| **Zonit.Messaging.Schedules** | [![v](https://img.shields.io/nuget/v/Zonit.Messaging.Schedules.svg?label=)](https://www.nuget.org/packages/Zonit.Messaging.Schedules) | ![dt](https://img.shields.io/nuget/dt/Zonit.Messaging.Schedules.svg?label=) | Recurring jobs on a typed schedule |
 
 ```powershell
 dotnet add package Zonit.Messaging.Commands
@@ -24,12 +54,13 @@ dotnet add package Zonit.Messaging.Tasks
 dotnet add package Zonit.Messaging.Schedules
 ```
 
-Requires **.NET 10**.
+## Register
 
-## Quick start
-
-Register the patterns you use — once, anywhere in your DI setup. The calls are safe to repeat and
-work with or without handlers present:
+Call the matching method for each pattern you use, in `Program.cs` or any plugin's DI module. The
+calls are safe to repeat and work with or without handlers present. A source generator finds your
+handler classes at compile time and emits concrete, reflection-free registration; these methods
+wire it into DI. In a modular app, call them inside each plugin so the generator registers the
+handlers in that compilation.
 
 ```csharp
 using Zonit.Messaging.Commands;
@@ -43,42 +74,39 @@ services.AddTaskHandlers();
 services.AddScheduleHandlers();
 ```
 
-You never register handlers by hand. A source generator finds your handler classes at compile time
-and emits concrete, reflection-free registration via a `[ModuleInitializer]`; `AddXxxHandlers()`
-wires it into DI. In a modular app, put the calls in each plugin's DI module — the generator
-registers the handlers in that compilation.
+## Commands (CQRS)
 
-## The four patterns
-
-### Commands (CQRS)
+A request handled by exactly one handler that returns a typed response. See
+[Instruction/commands.md](./Instruction/commands.md).
 
 ```csharp
 public record CreateUser(string Name, string Email) : IRequest<Guid>;
 
 public sealed class CreateUserHandler : IRequestHandler<CreateUser, Guid>
 {
-    public Task<Guid> HandleAsync(CreateUser request, CancellationToken ct = default) { /* ... */ }
+    public async Task<Guid> HandleAsync(CreateUser request, CancellationToken ct = default)
+        => await _users.AddAsync(request.Name, request.Email, ct);
 }
 
-// send
+// send (response type inferred from the request)
 Guid id = await commandProvider.SendAsync(new CreateUser("Ada", "ada@example.com"));
 ```
 
-### Events (Pub/Sub)
+## Events (Pub/Sub)
 
-One event, many handlers (fan-out). Tune workers/timeout by declaring the matching property on the
-handler — `IEventHandler<T>` exposes them as default interface members, no base class needed.
+One event, many handlers (fan-out). Tune workers or timeout by declaring the matching property on
+the handler; `IEventHandler<T>` exposes them as default interface members, so no base class is
+needed. See [Instruction/events.md](./Instruction/events.md).
 
 ```csharp
 public record UserCreated(Guid UserId, string Email);
 
 public sealed class SendWelcome : IEventHandler<UserCreated>
 {
-    public int WorkerCount => 4;                          // optional override (default 10)
-    public Task HandleAsync(UserCreated data, CancellationToken ct) { /* ... */ }
+    public int WorkerCount => 4;                       // optional override (default 10)
+    public Task HandleAsync(UserCreated data, CancellationToken ct) => /* ... */;
 }
 
-// publish
 eventProvider.Publish(new UserCreated(id, "ada@example.com"));
 ```
 
@@ -91,84 +119,55 @@ eventProvider.Publish(new InventoryReserved(orderId));
 await tx.WaitForCompletionAsync();
 ```
 
-### Tasks (background jobs)
+## Tasks (background jobs)
 
-Queue long-running work with progress, retries and live monitoring.
+Queue long-running work with progress reporting, retries and live monitoring. See
+[Instruction/tasks.md](./Instruction/tasks.md).
 
 ```csharp
 public sealed class ImportHandler : TaskHandler<ImportData>
 {
     public override TaskProgressStep[]? ProgressSteps =>
-        [ new(TimeSpan.FromSeconds(5), "Connecting..."), new(TimeSpan.FromSeconds(20), "Saving...") ];
+        [new(TimeSpan.FromSeconds(5), "Connecting..."), new(TimeSpan.FromSeconds(20), "Saving...")];
 
     protected override async Task HandleAsync(ImportData d, ITaskProgressContext p, CancellationToken ct)
     {
-        await p.NextAsync(); /* connect */
-        await p.NextAsync(); /* save    */
+        await p.NextAsync();   // connect
+        await p.NextAsync();   // save
     }
 }
 
 taskProvider.Publish(new ImportData("data.csv", 1000));
-taskManager.OnChange<ImportData>(s => Console.WriteLine($"{s.Progress}% — {s.Message}"));
+taskManager.OnChange<ImportData>(s => Console.WriteLine($"{s.Progress}% {s.Message}"));
 ```
 
-### Schedules (recurring jobs)
+## Schedules (recurring jobs)
 
 Run work on a typed, cron-like schedule. Each run gets a fresh DI scope and never overlaps itself.
+See [Instruction/schedules.md](./Instruction/schedules.md).
 
 ```csharp
 public sealed class DailyCleanup : IScheduleHandler
 {
-    public Task HandleAsync(CancellationToken ct) { /* ... */ }
+    public Task HandleAsync(CancellationToken ct) => /* ... */;
 }
 
 services.AddSchedule<DailyCleanup>(o =>
 {
-    o.Schedules = [ Schedule.Now(), Schedule.EveryDay(3, 0) ];
+    o.Schedules = [Schedule.Now(), Schedule.EveryDay(3, 0)];
 });
-```
-
-See the [Instruction/](./Instruction) guides for the full API of each pattern.
-
-## AOT & trimming
-
-Built for Native AOT. The packages set `IsAotCompatible`/`IsTrimmable` and ship **zero IL
-warnings** under the trim/AOT analyzers:
-
-- **Auto-discovery** (`AddXxxHandlers()`) is generated against concrete types — no reflection, no
-  assembly scanning.
-- **Manual** helpers (`AddEvent<H,E>`, `AddCommand<H,Rq,Rs>`, `AddTask<H,T>`, `AddSchedule<H>`,
-  `AddScheduleHandler<H,D>`) annotate their handler type parameter so they are trimming-clean too.
-
-Just publish with `PublishAot=true` — there is nothing to configure.
-
-## AI-assistant ready
-
-These packages teach your AI coding assistant how to use them. At build time they project the
-[Instruction/](./Instruction) guides into whatever assistant your repo uses — **Claude Code**
-(`.claude/skills/` + a `CLAUDE.md` pointer), **GitHub Copilot** (`.github/instructions/`) and
-**Cursor** (`.cursor/rules/`) — plus a neutral `.zonit/messaging/` copy. Detection is anchored at
-the repo root and only writes for editors you actually use; nothing is produced on CI.
-
-Opt out or steer it with MSBuild properties:
-
-```xml
-<ZonitMsgInstructions>false</ZonitMsgInstructions>   <!-- disable entirely -->
-<ZonitMsgEditors>claude;cursor</ZonitMsgEditors>     <!-- auto (default) | all | none | a list -->
 ```
 
 ## Distributed transport (planned)
 
-Today delivery is **in-process** only. Cross-service events over a broker (publish in service A,
-handle in services B/C) are designed but **not yet implemented** — see
-[docs/transport-plan.md](./docs/transport-plan.md). Until then, don't assume cross-process
+Today delivery is in-process only. Cross-service events over a broker (publish in service A, handle
+in services B and C) are designed but not yet implemented. See
+[docs/transport-plan.md](./docs/transport-plan.md). Until then, do not assume cross-process
 delivery, durability or ordering.
 
-## Contributing & support
+## Requirements and license
 
-Found a bug or have a feature request? Open an
-[issue](https://github.com/Zonit/Zonit.Services.EventMessage/issues/new).
+Requires **.NET 10**. Released under the **MIT License**.
 
-## License
-
-[MIT](LICENSE)
+Issues and pull requests are welcome at
+[github.com/Zonit/Zonit.Services.EventMessage](https://github.com/Zonit/Zonit.Services.EventMessage).

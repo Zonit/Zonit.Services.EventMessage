@@ -1,13 +1,13 @@
 # Cross-service transport (planned)
 
-> **Status: design only — not implemented.** Today every event/task is delivered **in-process**
+> **Status: design only, not implemented.** Today every event/task is delivered **in-process**
 > (an in-memory channel). This page summarizes the plan for delivering events across services over
 > a broker. The full design is in [docs/transport-plan.md](../docs/transport-plan.md).
 
 ## What it will do
 
 Publish an event in service **A** and have `IEventHandler<T>` implementations in services **B**,
-**C**, … handle it — over a message broker — while keeping the in-process path as the zero-config
+**C**, etc. handle it (over a message broker) while keeping the in-process path as the zero-config
 default and staying Native-AOT-safe.
 
 ## What's intentionally not here yet
@@ -15,7 +15,7 @@ default and staying Native-AOT-safe.
 So an AI assistant doesn't invent it: there is currently **no** `IEventTransport`, message
 envelope, serializer, outbox, dedup, or broker package. `IEventProvider.Publish` is `void` and
 writes straight to the local channel. Do not assume cross-process delivery, durability, ordering,
-or at-least-once semantics — none exist until the transport ships.
+or at-least-once semantics; none exist until the transport ships.
 
 ## The shape it will take
 
@@ -30,5 +30,5 @@ or at-least-once semantics — none exist until the transport ships.
 - Bounded channels (the `Capacity` option) as a prerequisite, so a remote producer can't exhaust a
   consumer's memory.
 
-When implementing any of this, follow [docs/transport-plan.md](../docs/transport-plan.md) — it maps
+When implementing any of this, follow [docs/transport-plan.md](../docs/transport-plan.md); it maps
 each piece to the current code and the phased rollout.

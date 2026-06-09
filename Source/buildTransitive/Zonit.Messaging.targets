@@ -62,7 +62,7 @@
     <ZonitMsgDoc Include="tasks">         <Glob>**/*TaskHandler.cs</Glob><Summary>Background jobs: TaskHandler&lt;T&gt;, progress, monitoring, retries.</Summary></ZonitMsgDoc>
     <ZonitMsgDoc Include="schedules">     <Glob>**/*ScheduleHandler.cs</Glob><Summary>Recurring jobs: IScheduleHandler, the Schedule factory, auto-start.</Summary></ZonitMsgDoc>
     <ZonitMsgDoc Include="configuration"> <Summary>DI lifetimes, workers, timeouts, bounded channels, AOT/trimming.</Summary></ZonitMsgDoc>
-    <ZonitMsgDoc Include="transport">     <Summary>Cross-service events over a broker (planned — design only).</Summary></ZonitMsgDoc>
+    <ZonitMsgDoc Include="transport">     <Summary>Cross-service events over a broker (planned, design only).</Summary></ZonitMsgDoc>
   </ItemGroup>
 
   <!-- Resolve the workspace root by walking up to the nearest .git / solution / editor folder. -->
@@ -159,12 +159,12 @@
         sb.Append("## Zonit.Messaging (in-process messaging)" + NL + NL);
         sb.Append("For in-process **Commands** (CQRS), **Events** (pub/sub), **Tasks** (background jobs) and " +
                   "**Schedules** (recurring jobs), use Zonit.Messaging. Handlers are auto-discovered at compile " +
-                  "time by a source generator — implement the interface and call the matching `AddXxxHandlers()`; " +
+                  "time by a source generator; implement the interface and call the matching `AddXxxHandlers()`; " +
                   "never scan assemblies or use reflection (it is Native-AOT safe). Send via `ICommandProvider`, " +
                   "`IEventProvider`, `ITaskProvider`, `IScheduleProvider`. Guides:" + NL + NL);
         foreach (var d in Docs)
             sb.Append("- `" + Root + "/messaging/" + d.ItemSpec + ".md`: " + d.GetMetadata("Summary") + NL);
-        sb.Append(NL + "Cross-process delivery does not exist yet — `Publish` is in-process only. See `" +
+        sb.Append(NL + "Cross-process delivery does not exist yet; `Publish` is in-process only. See `" +
                   Root + "/messaging/transport.md` before assuming any distributed behaviour.");
         string umbrella = sb.ToString().Trim();
 
@@ -224,7 +224,7 @@
               + "This repo uses **Zonit.Messaging** for in-process Commands (CQRS), Events (pub/sub), "
               + "Tasks (background jobs) and Schedules (recurring jobs). Implement the handler interface "
               + "(`IRequestHandler`, `IEventHandler`, `TaskHandler<T>`, `IScheduleHandler`) and register "
-              + "with the matching `AddXxxHandlers()` — handlers are source-generated and AOT-safe, so do "
+              + "with the matching `AddXxxHandlers()`; handlers are source-generated and AOT-safe, so do "
               + "not scan assemblies or use reflection. Use the **`zonit-messaging`** skill and the guides "
               + "under `" + Root + "/messaging/`.";
             ch |= Inject(System.IO.Path.Combine(ProjectRoot, "CLAUDE.md"), pointer,
