@@ -119,35 +119,33 @@ public class CommandHandlerGenerator : IIncrementalGenerator
         sb.AppendLine("/// </summary>");
         sb.AppendLine($"internal sealed class CommandProviderSegment_{safeAssemblyName} : ICommandProviderSegment");
         sb.AppendLine("{");
-        sb.AppendLine("    public Task<(bool Handled, TResponse? Result)> TryHandleAsync<TResponse>(");
+        sb.AppendLine("    public bool TryHandle<TResponse>(");
         sb.AppendLine("        IRequest<TResponse> request,");
         sb.AppendLine("        IServiceProvider serviceProvider,");
-        sb.AppendLine("        CancellationToken cancellationToken)");
+        sb.AppendLine("        CancellationToken cancellationToken,");
+        sb.AppendLine("        out Task<TResponse?> result)");
         sb.AppendLine("        where TResponse : notnull");
         sb.AppendLine("    {");
-        sb.AppendLine("        return request switch");
+        sb.AppendLine("        switch (request)");
         sb.AppendLine("        {");
 
         foreach (var handler in handlers)
         {
-            sb.AppendLine($"            {handler.RequestFullName} r => HandleAsync<{handler.RequestFullName}, {handler.ResponseFullName}, TResponse>(r, serviceProvider, cancellationToken),");
+            sb.AppendLine($"            case {handler.RequestFullName} r:");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                var handler = serviceProvider.GetRequiredService<IRequestHandler<{handler.RequestFullName}, {handler.ResponseFullName}>>();");
+            sb.AppendLine("                var task = handler.HandleAsync(r, cancellationToken);");
+            sb.AppendLine("                // IRequest is invariant, so the handler's response type IS TResponse at runtime:");
+            sb.AppendLine("                // reinterpret the reference (identity) instead of boxing the result through object.");
+            sb.AppendLine("                result = global::System.Runtime.CompilerServices.Unsafe.As<Task<TResponse?>>(task);");
+            sb.AppendLine("                return true;");
+            sb.AppendLine("            }");
         }
 
-        sb.AppendLine("            _ => Task.FromResult<(bool, TResponse?)>((false, default))");
-        sb.AppendLine("        };");
-        sb.AppendLine("    }");
-        sb.AppendLine();
-        sb.AppendLine("    private static async Task<(bool Handled, TResponse? Result)> HandleAsync<TRequest, THandlerResponse, TResponse>(");
-        sb.AppendLine("        TRequest request,");
-        sb.AppendLine("        IServiceProvider serviceProvider,");
-        sb.AppendLine("        CancellationToken cancellationToken)");
-        sb.AppendLine("        where TRequest : IRequest<THandlerResponse>");
-        sb.AppendLine("        where THandlerResponse : notnull");
-        sb.AppendLine("        where TResponse : notnull");
-        sb.AppendLine("    {");
-        sb.AppendLine("        var handler = serviceProvider.GetRequiredService<IRequestHandler<TRequest, THandlerResponse>>();");
-        sb.AppendLine("        var result = await handler.HandleAsync(request, cancellationToken);");
-        sb.AppendLine("        return (true, (TResponse?)(object?)result);");
+        sb.AppendLine("            default:");
+        sb.AppendLine("                result = null!;");
+        sb.AppendLine("                return false;");
+        sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine("}");
         sb.AppendLine();

@@ -18,15 +18,16 @@ public sealed class CompositeCommandProvider : ICommandProvider
         _segments = serviceProvider.GetServices<ICommandProviderSegment>().ToArray();
     }
 
-    public async Task<TResponse?> SendAsync<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+    public Task<TResponse?> SendAsync<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         where TResponse : notnull
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // Not async: the matched segment hands back the handler's own Task, so we return it
+        // directly — no per-dispatch state machine, tuple, or response boxing.
         foreach (var segment in _segments)
         {
-            var (handled, result) = await segment.TryHandleAsync(request, _serviceProvider, cancellationToken);
-            if (handled)
+            if (segment.TryHandle(request, _serviceProvider, cancellationToken, out var result))
             {
                 return result;
             }

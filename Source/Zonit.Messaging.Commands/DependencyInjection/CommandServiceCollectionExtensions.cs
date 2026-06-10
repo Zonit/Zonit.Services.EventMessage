@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -63,19 +64,24 @@ internal sealed class SingleCommandSegment<TRequest, TResponse> : ICommandProvid
     where TRequest : IRequest<TResponse>
     where TResponse : notnull
 {
-    public async Task<(bool Handled, TResult? Result)> TryHandleAsync<TResult>(
+    public bool TryHandle<TResult>(
         IRequest<TResult> request,
         IServiceProvider serviceProvider,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        out Task<TResult?> result)
         where TResult : notnull
     {
         if (request is TRequest typedRequest)
         {
             var handler = serviceProvider.GetRequiredService<IRequestHandler<TRequest, TResponse>>();
-            var result = await handler.HandleAsync(typedRequest, cancellationToken);
-            return (true, (TResult?)(object?)result);
+            // IRequest is invariant, so TResponse == TResult at runtime here: reinterpret the
+            // handler's Task<TResponse> as Task<TResult?> (identity, no boxing, no extra Task).
+            var task = handler.HandleAsync(typedRequest, cancellationToken);
+            result = Unsafe.As<Task<TResult?>>(task);
+            return true;
         }
-        
-        return (false, default);
+
+        result = null!;
+        return false;
     }
 }

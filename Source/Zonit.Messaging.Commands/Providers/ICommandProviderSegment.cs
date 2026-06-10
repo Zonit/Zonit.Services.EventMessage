@@ -14,10 +14,18 @@ public interface ICommandProviderSegment
     /// <param name="request">The request to handle</param>
     /// <param name="serviceProvider">Service provider for resolving handlers</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>The response if handled, null if this segment cannot handle the request</returns>
-    Task<(bool Handled, TResponse? Result)> TryHandleAsync<TResponse>(
+    /// <param name="result">The handler's task when handled; otherwise <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if this segment handled the request.</returns>
+    /// <remarks>
+    /// Returns the handler's <see cref="Task{TResult}"/> directly (via an identity reference
+    /// reinterpret — see the generated segment), with no boxing of the response and no tuple/state-machine
+    /// allocation. Safe because <see cref="IRequest{TResponse}"/> is invariant, so a matched request's
+    /// declared response type is exactly <typeparamref name="TResponse"/> at runtime.
+    /// </remarks>
+    bool TryHandle<TResponse>(
         IRequest<TResponse> request,
         IServiceProvider serviceProvider,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        out Task<TResponse?> result)
         where TResponse : notnull;
 }

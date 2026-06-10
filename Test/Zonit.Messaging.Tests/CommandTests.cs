@@ -1,3 +1,4 @@
+using System.Reflection;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Zonit.Messaging.Commands;
@@ -65,5 +66,19 @@ public class CommandTests
         var result = await h.Get<ICommandProvider>().SendAsync(new Ping("manual"));
 
         result.Should().Be("pong:manual");
+    }
+
+    [Fact]
+    public void IRequest_must_stay_invariant()
+    {
+        // Safety guardrail for the zero-alloc dispatch: the generated segment reinterprets the
+        // handler's Task<response> as Task<TResponse> via Unsafe.As. That is type-safe ONLY because
+        // IRequest<TResponse> is invariant — a request can never be sent under a wider TResponse.
+        // Making it covariant (out) would silently break the reinterpret, so lock the invariant here.
+        var responseParam = typeof(IRequest<>).GetGenericArguments()[0];
+
+        (responseParam.GenericParameterAttributes & GenericParameterAttributes.VarianceMask)
+            .Should().Be(GenericParameterAttributes.None,
+                "IRequest<TResponse> must remain invariant for the Unsafe.As command dispatch to stay type-safe");
     }
 }

@@ -11,7 +11,7 @@
       generators do not trip CS7034 on the prerelease suffix.
     -->
     <VersionPrefix>10.0.0</VersionPrefix>
-    <VersionSuffix>preview.1</VersionSuffix>
+    <VersionSuffix>preview.2</VersionSuffix>
 
     <Authors>Zonit</Authors>
     <Company>Zonit</Company>
