@@ -104,7 +104,8 @@ public sealed class TaskHandlerRegistration<TTask> : TaskHandlerRegistration whe
                 ContinueOnError = typedHandler.ContinueOnError,
                 ProgressSteps = typedHandler.ProgressSteps,
                 Title = typedHandler.Title,
-                Description = typedHandler.Description
+                Description = typedHandler.Description,
+                Capacity = typedHandler.Capacity
             };
         }
 

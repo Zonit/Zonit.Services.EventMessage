@@ -20,14 +20,27 @@ public sealed record BenchEvent(int Id);
 
 public sealed class BenchEventHandler : IEventHandler<BenchEvent>
 {
+    // Bounded buffer + no timeout: the publish-cost benchmark fires far faster than the workers
+    // drain, so an unbounded channel would accumulate without limit. Bounding it makes EventPublish
+    // a steady-state O(1) measurement instead of an unbounded-backlog memory blowup.
+    public int? Capacity => 1024;
+    public TimeSpan Timeout => System.Threading.Timeout.InfiniteTimeSpan;
+
     public Task HandleAsync(BenchEvent data, CancellationToken ct) => Task.CompletedTask;
 }
 
 public sealed record BenchTask(int Id);
 
-public sealed class BenchTaskHandler : ITaskHandler<BenchTask>
+public sealed class BenchTaskHandler : TaskHandler<BenchTask>
 {
-    public Task HandleAsync(TaskPayload<BenchTask> payload) => Task.CompletedTask;
+    // Bounded buffer keeps the publish-heavy benchmark from accumulating an unbounded channel
+    // backlog (a single-threaded publish loop far outruns the workers); the infinite timeout
+    // avoids the per-task CancellationTokenSource + timer churn of the default 5-minute timeout.
+    public override int? Capacity => 1024;
+    public override TimeSpan Timeout => System.Threading.Timeout.InfiniteTimeSpan;
+
+    protected override Task HandleAsync(BenchTask data, ITaskProgressContext progress, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }
 
 [MemoryDiagnoser]

@@ -30,6 +30,13 @@ public abstract class TaskHandler<TData> : ITaskHandler<TData> where TData : not
     public virtual TimeSpan RetryDelay => TimeSpan.FromSeconds(5);
 
     /// <summary>
+    /// Maksymalna liczba zbuforowanych zada� tego typu oczekuj�cych na przetworzenie.
+    /// <c>null</c> = bez limitu (domy�lnie). Ustaw warto��, aby ograniczy� zu�ycie pami�ci
+    /// przy zalewie publikacji — po przekroczeniu limitu nadmiarowe zadania s� odrzucane.
+    /// </summary>
+    public virtual int? Capacity => null;
+
+    /// <summary>
     /// Czy kontynuowa� drenowanie kolejki po ostatecznym b��dzie zadania. Domy�lnie true.
     /// </summary>
     public virtual bool ContinueOnError => true;

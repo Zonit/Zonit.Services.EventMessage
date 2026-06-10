@@ -223,9 +223,11 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
     {
         if (payload is TEvent typedPayload)
         {
-            if (!_channel.Writer.TryWrite(typedPayload))
+            if (!_channel.Writer.TryWrite(typedPayload) && _logger.IsEnabled(LogLevel.Warning))
             {
                 // Only reachable for a bounded channel that is full; unbounded always accepts.
+                // Guarded by IsEnabled: under sustained backpressure this path is hot, and the
+                // logging extension would otherwise allocate the args array on every drop.
                 _logger.LogWarning(
                     "Event channel for '{EventType}' is full (capacity {Capacity}); event dropped.",
                     typeof(TEvent).Name,
@@ -251,10 +253,10 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
             }
             else
             {
-                using var timeoutCts = new CancellationTokenSource(_options.Timeout);
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                    timeoutCts.Token,
-                    cancellationToken);
+                // One linked CTS + CancelAfter instead of a separate timeout CTS — halves the
+                // per-message allocation on the (default) finite-timeout path.
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                linkedCts.CancelAfter(_options.Timeout);
 
                 await _handler(typedPayload, linkedCts.Token).ConfigureAwait(false);
             }
@@ -280,10 +282,9 @@ internal sealed class EventSubscription<TEvent> : EventSubscription where TEvent
                 }
                 else
                 {
-                    using var timeoutCts = new CancellationTokenSource(_options.Timeout);
-                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                        timeoutCts.Token,
-                        cancellationToken);
+                    // One linked CTS + CancelAfter instead of a separate timeout CTS.
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    linkedCts.CancelAfter(_options.Timeout);
 
                     await _handler(data, linkedCts.Token);
                 }

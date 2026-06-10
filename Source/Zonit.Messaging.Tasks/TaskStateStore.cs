@@ -8,14 +8,29 @@ namespace Zonit.Messaging.Tasks;
 /// </summary>
 internal sealed class TaskStateStore
 {
+    /// <summary>
+    /// Domyślny górny limit przechowywanych stanów zadań. Po przekroczeniu usuwane są
+    /// najstarsze zakończone zadania (FIFO), nawet jeśli nie minął jeszcze czas retencji.
+    /// Chroni przed nieograniczonym wzrostem pamięci przy zalewie publikacji.
+    /// </summary>
+    private const int DefaultMaxRetainedTasks = 10_000;
+
     private readonly ConcurrentDictionary<Guid, TaskState> _tasks = new();
     private readonly ConcurrentDictionary<Guid, Action<TaskState>> _globalSubscribers = new();
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Action<TaskState>>> _extensionSubscribers = new();
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, Action<TaskState>>> _typeSubscribers = new();
     private readonly ConcurrentDictionary<(string, Guid), ConcurrentDictionary<Guid, Action<TaskState>>> _typeExtensionSubscribers = new();
+    // FIFO kolejność zadań w stanie terminalnym (Completed/Failed/Cancelled) — używana do
+    // eksmisji najstarszych po przekroczeniu limitu retencji. Aktywne zadania nigdy tu nie trafiają.
+    private readonly ConcurrentQueue<Guid> _terminalOrder = new();
+    private readonly int _maxRetainedTasks;
     private readonly ILogger _logger;
 
-    public TaskStateStore(ILogger logger) => _logger = logger;
+    public TaskStateStore(ILogger logger, int maxRetainedTasks = DefaultMaxRetainedTasks)
+    {
+        _logger = logger;
+        _maxRetainedTasks = maxRetainedTasks > 0 ? maxRetainedTasks : DefaultMaxRetainedTasks;
+    }
 
     /// <summary>
     /// Tworzy nowy stan zadania.
@@ -104,6 +119,7 @@ internal sealed class TaskStateStore
             state.CompletedAt = DateTimeOffset.UtcNow;
             state.Progress = 100;
         });
+        TrackTerminal(taskId);
     }
 
     /// <summary>
@@ -116,6 +132,7 @@ internal sealed class TaskStateStore
             state.Status = TaskStatus.Failed;
             state.CompletedAt = DateTimeOffset.UtcNow;
         });
+        TrackTerminal(taskId);
     }
 
     /// <summary>
@@ -128,6 +145,22 @@ internal sealed class TaskStateStore
             state.Status = TaskStatus.Cancelled;
             state.CompletedAt = DateTimeOffset.UtcNow;
         });
+        TrackTerminal(taskId);
+    }
+
+    /// <summary>
+    /// Rejestruje zadanie w stanie terminalnym i eksmituje najstarsze, gdy liczba przechowywanych
+    /// zakończonych zadań przekroczy <see cref="_maxRetainedTasks"/>. Daje twardy limit pamięci
+    /// niezależny od czasowego <see cref="CleanupOldTasks"/> (który usuwa dopiero po 30 min).
+    /// </summary>
+    private void TrackTerminal(Guid taskId)
+    {
+        _terminalOrder.Enqueue(taskId);
+
+        while (_terminalOrder.Count > _maxRetainedTasks && _terminalOrder.TryDequeue(out var oldId))
+        {
+            _tasks.TryRemove(oldId, out _);
+        }
     }
 
     /// <summary>
@@ -168,13 +201,12 @@ internal sealed class TaskStateStore
     /// <summary>
     /// Pobiera aktywne zadania.
     /// </summary>
+    private static bool IsActive(TaskState s) => s.Status is TaskStatus.Pending or TaskStatus.Processing;
+
     public IReadOnlyCollection<TaskState> GetActiveTasks(Guid? extensionId = null)
     {
-        var activeStatuses = new[] { TaskStatus.Pending, TaskStatus.Processing };
-
         return _tasks.Values
-            .Where(s => activeStatuses.Contains(s.Status))
-            .Where(s => !extensionId.HasValue || s.ExtensionId == extensionId)
+            .Where(s => IsActive(s) && (!extensionId.HasValue || s.ExtensionId == extensionId))
             .Select(s => s.Snapshot())
             .ToList()
             .AsReadOnly();
@@ -185,13 +217,10 @@ internal sealed class TaskStateStore
     /// </summary>
     public IReadOnlyCollection<TaskState<TTask>> GetActiveTasks<TTask>(Guid? extensionId = null) where TTask : notnull
     {
-        var activeStatuses = new[] { TaskStatus.Pending, TaskStatus.Processing };
         var taskType = typeof(TTask).FullName ?? typeof(TTask).Name;
 
         return _tasks.Values
-            .Where(s => activeStatuses.Contains(s.Status))
-            .Where(s => s.TaskType == taskType)
-            .Where(s => !extensionId.HasValue || s.ExtensionId == extensionId)
+            .Where(s => IsActive(s) && s.TaskType == taskType && (!extensionId.HasValue || s.ExtensionId == extensionId))
             .Select(s => TaskState<TTask>.FromBase(s))
             .Where(s => s is not null)
             .Cast<TaskState<TTask>>()
@@ -204,13 +233,10 @@ internal sealed class TaskStateStore
     /// </summary>
     public IReadOnlyCollection<TaskState> GetActiveTasks(Type[] taskTypes, Guid? extensionId = null)
     {
-        var activeStatuses = new[] { TaskStatus.Pending, TaskStatus.Processing };
         var typeNames = taskTypes.Select(t => t.FullName ?? t.Name).ToHashSet();
 
         return _tasks.Values
-            .Where(s => activeStatuses.Contains(s.Status))
-            .Where(s => typeNames.Contains(s.TaskType))
-            .Where(s => !extensionId.HasValue || s.ExtensionId == extensionId)
+            .Where(s => IsActive(s) && typeNames.Contains(s.TaskType) && (!extensionId.HasValue || s.ExtensionId == extensionId))
             .Select(s => s.Snapshot())
             .ToList()
             .AsReadOnly();
@@ -333,31 +359,52 @@ internal sealed class TaskStateStore
 
     private void NotifySubscribers(TaskState state)
     {
+        // Resolve the matching subscriber buckets up front (against the live state — TaskType and
+        // ExtensionId are immutable, so the lookups are identical to the snapshot's).
+        var hasGlobal = !_globalSubscribers.IsEmpty;
+
+        ConcurrentDictionary<Guid, Action<TaskState>>? extensionSubs = null;
+        ConcurrentDictionary<Guid, Action<TaskState>>? typeExtSubs = null;
+        if (state.ExtensionId.HasValue)
+        {
+            _extensionSubscribers.TryGetValue(state.ExtensionId.Value, out extensionSubs);
+            _typeExtensionSubscribers.TryGetValue((state.TaskType, state.ExtensionId.Value), out typeExtSubs);
+        }
+
+        _typeSubscribers.TryGetValue(state.TaskType, out var typeSubs);
+
+        // Fast path: nothing is listening for this task — skip the snapshot allocation entirely.
+        // The common case (no UI bound) previously allocated a throwaway snapshot per state change.
+        if (!hasGlobal
+            && (extensionSubs is null || extensionSubs.IsEmpty)
+            && (typeSubs is null || typeSubs.IsEmpty)
+            && (typeExtSubs is null || typeExtSubs.IsEmpty))
+        {
+            return;
+        }
+
         // Hand subscribers an immutable snapshot, not the live object that workers keep mutating.
         var snapshot = state.Snapshot();
 
-        // Global subscribers
-        foreach (var handler in _globalSubscribers.Values)
-            Invoke(handler, snapshot);
+        if (hasGlobal)
+        {
+            foreach (var handler in _globalSubscribers.Values)
+                Invoke(handler, snapshot);
+        }
 
-        // Extension-specific subscribers
-        if (snapshot.ExtensionId.HasValue &&
-            _extensionSubscribers.TryGetValue(snapshot.ExtensionId.Value, out var extensionSubs))
+        if (extensionSubs is not null)
         {
             foreach (var handler in extensionSubs.Values)
                 Invoke(handler, snapshot);
         }
 
-        // Type-specific subscribers
-        if (_typeSubscribers.TryGetValue(snapshot.TaskType, out var typeSubs))
+        if (typeSubs is not null)
         {
             foreach (var handler in typeSubs.Values)
                 Invoke(handler, snapshot);
         }
 
-        // Type + Extension specific subscribers
-        if (snapshot.ExtensionId.HasValue &&
-            _typeExtensionSubscribers.TryGetValue((snapshot.TaskType, snapshot.ExtensionId.Value), out var typeExtSubs))
+        if (typeExtSubs is not null)
         {
             foreach (var handler in typeExtSubs.Values)
                 Invoke(handler, snapshot);

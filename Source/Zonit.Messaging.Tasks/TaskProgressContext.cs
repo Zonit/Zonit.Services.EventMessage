@@ -3,13 +3,14 @@ using System.Diagnostics;
 namespace Zonit.Messaging.Tasks;
 
 /// <summary>
-/// Implementacja kontekstu postêpu z time-based smooth progress.
-/// Automatycznie wysy³a aktualizacje gdy % siê zmieni (max 100 razy).
+/// Implementacja kontekstu postï¿½pu z time-based smooth progress.
+/// Automatycznie wysyï¿½a aktualizacje gdy % siï¿½ zmieni (max 100 razy).
 /// </summary>
 internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
 {
     private readonly TaskProgressStep[] _steps;
-    private readonly Action<int, int?, string?> _onProgressChanged;
+    private readonly TaskStateStore? _stateStore;
+    private readonly Guid _taskId;
     private readonly double[] _stepEndPercentages;
     private readonly Stopwatch _stepStopwatch = new();
     private readonly Timer? _progressTimer;
@@ -22,16 +23,18 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
 
     public TaskProgressContext(
         TaskProgressStep[]? steps,
-        Action<int, int?, string?> onProgressChanged)
+        TaskStateStore? stateStore,
+        Guid taskId)
     {
         _steps = steps ?? [];
-        _onProgressChanged = onProgressChanged;
+        _stateStore = stateStore;
+        _taskId = taskId;
         _stepEndPercentages = CalculateStepEndPercentages(_steps);
 
-        // Uruchom timer tylko jeœli mamy kroki do œledzenia
+        // Uruchom timer tylko jeï¿½li mamy kroki do ï¿½ledzenia
         if (_steps.Length > 0)
         {
-            // Timer co 200ms sprawdza czy % siê zmieni³
+            // Timer co 200ms sprawdza czy % siï¿½ zmieniï¿½
             _progressTimer = new Timer(
                 _ => UpdateTimeBasedProgress(),
                 null,
@@ -110,14 +113,14 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
     }
 
     /// <summary>
-    /// Wywo³ywane przez timer - aktualizuje postêp na podstawie up³ywu czasu.
+    /// Wywoï¿½ywane przez timer - aktualizuje postï¿½p na podstawie upï¿½ywu czasu.
     /// </summary>
     private void UpdateTimeBasedProgress()
     {
         // Double-check pattern dla thread-safety
         if (_disposed) return;
 
-        // U¿ywamy Monitor.TryEnter ¿eby unikn¹æ blokowania timera
+        // Uï¿½ywamy Monitor.TryEnter ï¿½eby uniknï¿½ï¿½ blokowania timera
         if (!Monitor.TryEnter(_lock))
             return;
 
@@ -133,7 +136,7 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
             var progress = CalculateCurrentProgress();
             var stepNumber = _currentStepIndex + 1;
 
-            // Wysy³aj tylko gdy % siê zmieni (bez zmiany message)
+            // Wysyï¿½aj tylko gdy % siï¿½ zmieni (bez zmiany message)
             NotifyIfChanged(progress, stepNumber, message: null);
         }
         finally
@@ -162,7 +165,7 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
             return (int)stepEndPercentage;
         }
 
-        // Oblicz postêp w ramach kroku (max 99% ¿eby nie przeskoczyæ do nastêpnego)
+        // Oblicz postï¿½p w ramach kroku (max 99% ï¿½eby nie przeskoczyï¿½ do nastï¿½pnego)
         var stepProgress = Math.Min(elapsed.TotalMilliseconds / estimatedDuration.TotalMilliseconds, 0.99);
         var totalProgress = stepStartPercentage + (stepRange * stepProgress);
 
@@ -171,11 +174,11 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
 
     private void NotifyIfChanged(int progress, int? stepNumber, string? message)
     {
-        // Wysy³aj tylko gdy % siê zmieni lub gdy jest nowa wiadomoœæ
+        // Wysyï¿½aj tylko gdy % siï¿½ zmieni lub gdy jest nowa wiadomoï¿½ï¿½
         if (progress != _lastReportedProgress || message is not null)
         {
             _lastReportedProgress = progress;
-            _onProgressChanged(progress, stepNumber, message ?? _lastMessage);
+            _stateStore?.UpdateProgress(_taskId, progress, stepNumber, message ?? _lastMessage);
         }
     }
 
@@ -225,7 +228,7 @@ internal sealed class TaskProgressContext : ITaskProgressContext, IDisposable
             _disposed = true;
         }
         
-        // Dispose timera poza lockiem ¿eby unikn¹æ deadlocka
+        // Dispose timera poza lockiem ï¿½eby uniknï¿½ï¿½ deadlocka
         _progressTimer?.Dispose();
     }
 }

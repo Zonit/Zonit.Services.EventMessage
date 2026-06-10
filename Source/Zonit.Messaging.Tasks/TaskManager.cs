@@ -272,10 +272,14 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
             if (!_channel.Writer.TryWrite((typedPayload, extensionId, taskId)))
             {
                 // Only reachable for a bounded channel that is full; unbounded always accepts.
-                _logger.LogWarning(
-                    "Task channel for '{TaskType}' is full (capacity {Capacity}); task dropped.",
-                    typeof(TTask).Name,
-                    _options.Capacity);
+                // Guarded by IsEnabled: under sustained backpressure this path is hot.
+                if (_logger.IsEnabled(LogLevel.Warning))
+                {
+                    _logger.LogWarning(
+                        "Task channel for '{TaskType}' is full (capacity {Capacity}); task dropped.",
+                        typeof(TTask).Name,
+                        _options.Capacity);
+                }
                 stateStore.FailTask(taskId);
             }
         }
@@ -300,11 +304,11 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
             while (!success && retryCount <= _options.MaxRetries)
             {
                 TaskProgressContext? progressContext = null;
-                CancellationTokenSource? timeoutCts = null;
                 CancellationTokenSource? linkedCts = null;
                 try
                 {
-                    // Fast path: when no timeout is wanted, skip the two CTS allocations + timer.
+                    // Fast path: when no timeout is wanted, skip the CTS allocation + timer entirely.
+                    // Otherwise a single linked CTS + CancelAfter (one allocation, not two).
                     CancellationToken handlerToken;
                     if (_options.Timeout == Timeout.InfiniteTimeSpan)
                     {
@@ -312,16 +316,12 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
                     }
                     else
                     {
-                        timeoutCts = new CancellationTokenSource(_options.Timeout);
-                        linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                            timeoutCts.Token,
-                            cancellationToken);
+                        linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        linkedCts.CancelAfter(_options.Timeout);
                         handlerToken = linkedCts.Token;
                     }
 
-                    progressContext = new TaskProgressContext(
-                        _progressSteps,
-                        (progress, step, message) => _stateStore?.UpdateProgress(taskId, progress, step, message));
+                    progressContext = new TaskProgressContext(_progressSteps, _stateStore, taskId);
 
                     var payload = new TaskPayload<TTask>
                     {
@@ -370,7 +370,6 @@ internal sealed class TaskSubscription<TTask> : TaskSubscription where TTask : n
                 finally
                 {
                     linkedCts?.Dispose();
-                    timeoutCts?.Dispose();
                 }
             }
         }

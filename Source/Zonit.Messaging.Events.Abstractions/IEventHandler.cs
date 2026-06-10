@@ -67,4 +67,12 @@ public interface IEventHandler<TEvent> where TEvent : notnull
     /// Default: true (loguje błąd i drenuje dalej kolejkę).
     /// </summary>
     bool ContinueOnError => true;
+
+    /// <summary>
+    /// Maksymalna liczba zbuforowanych eventów tego typu oczekujących na przetworzenie.
+    /// Default: <c>null</c> = bez limitu. Ustaw wartość, aby ograniczyć zużycie pamięci, gdy
+    /// producent może trwale wyprzedzać workerów — po przekroczeniu limitu nadmiarowe eventy
+    /// są odrzucane z ostrzeżeniem w logu (publikacja jest nieblokująca).
+    /// </summary>
+    int? Capacity => null;
 }

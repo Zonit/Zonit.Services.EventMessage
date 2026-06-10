@@ -111,7 +111,8 @@ public sealed class EventHandlerRegistration<TEvent> : EventHandlerRegistration 
             {
                 WorkerCount = handler.WorkerCount,
                 Timeout = handler.Timeout,
-                ContinueOnError = handler.ContinueOnError
+                ContinueOnError = handler.ContinueOnError,
+                Capacity = handler.Capacity
             };
         }
 
